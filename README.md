@@ -6,14 +6,16 @@ App de technicien iPhone pour l'activité Valya (achat-revente et réparation) :
 
 ## Fonctions
 
-- **Diagnostic** : modèle, IMEI, série, iOS, batterie (santé, cycles, température), stockage, activation, Localiser, origine (neuf / reconditionné Apple / échange SAV), région.
+- **iPhone branché** : diagnostic automatique au branchement, avec un verdict clair (OK / À vérifier / Bloqué) : modèle, IMEI, série, iOS, batterie (santé, cycles, n° de série, température, charge en direct), stockage, activation, Localiser, origine, région.
+- **Tests guidés** pas à pas (écran, tactile, Face ID, True Tone, caméras, micro, haut-parleurs, boutons, réseau, charge…) : ✓ / ✗, enregistrés dans la fiche et sur les rapports.
+- **Traçabilité** : historique complet de chaque iPhone (scans, changements détectés, interventions, statuts, tests). Suivi **avant / après réparation** avec comparaison (ex. n° de série batterie changé = batterie remplacée).
+- **Réparations clients** : fiche R-0001…, étapes (Reçu → Diagnostic → Devis → En réparation → Prêt → Rendu), devis/acompte, état au dépôt, **bon de dépôt** et **bon de restitution** imprimables.
+- **Stock de pièces** : coût, qualité (origine / OEM / compatible), fournisseur, alerte de stock bas ; décompté automatiquement quand une pièce est posée.
 - **Outils** : redémarrer, éteindre, mode récupération (entrée/sortie), mise à jour ou restauration iOS, sauvegarde complète, journal système en direct, apps installées, analyse des plantages (panic → pièce suspecte).
-- **Tests manuels** à cocher (Face ID, caméras, micro…), enregistrés dans la fiche.
-- **Stock** : fiche par iPhone (VAL-0001…), prix, frais, réparations, marge, statut, export CSV.
-- **Rapport de vente** imprimable / PDF.
-- **Google Sheets** : envoi vers l'onglet « stock » après validation d'un récapitulatif ; colonnes A–I et K seulement (J = Marge jamais touchée), relecture après écriture.
+- **Mes téléphones** : prix, frais, réparations, marge, statut, export CSV, **rapport de vente** PDF.
+- **Google Sheets (STOCKFLOW)** : envoi vers l'onglet « stock » après validation d'un récapitulatif ; colonnes A–I et K seulement (J = Marge jamais touchée), relecture après écriture.
 
-Ce que l'app ne fait pas : aucun contournement d'iCloud, de code ou d'opérateur.
+Ce que l'app ne fait pas : aucun contournement d'iCloud, de code ou d'opérateur, et elle ne masque pas le message « Pièce inconnue » d'Apple : les pièces non d'origine sont tracées et signalées sur les rapports.
 
 ## Installation sur un Mac (une seule fois)
 

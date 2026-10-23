@@ -230,6 +230,8 @@ def full_scan(udid):
         alerts.append({"niveau": "danger", "texte": "Non activé (%s) : l'iPhone n'est pas utilisable en l'état." % activation})
     if findmy:
         alerts.append({"niveau": "danger", "texte": "Localiser est ACTIVÉ : le vendeur doit se déconnecter d'iCloud avant la vente, sinon l'iPhone restera bloqué après réinitialisation."})
+    if findmy is None:
+        alerts.append({"niveau": "warn", "texte": "Localiser non lisible par câble sur cet iPhone : vérifie dans Réglages › [nom] › Localiser."})
     if origin_level == "warn":
         alerts.append({"niveau": "warn", "texte": "Origine : %s." % origin})
     if isinstance(bat.get("sante"), int) and bat["sante"] < 80:
@@ -239,8 +241,10 @@ def full_scan(udid):
 
     color_code = str(info.get("DeviceEnclosureColor") or info.get("DeviceColor") or "")
     sim = info.get("SIMStatus")
+    verdict = make_verdict(alerts, findmy)
 
     return {
+        "verdict": verdict,
         "udid": udid,
         "scanne_le": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "nom_appareil": info.get("DeviceName"),
@@ -268,6 +272,25 @@ def full_scan(udid):
         "stockage": sto,
         "alertes": alerts,
     }
+
+
+def make_verdict(alerts, findmy):
+    """Résumé en une phrase, pour savoir d'un coup d'œil si on peut acheter / vendre."""
+    if any(a["niveau"] == "danger" for a in alerts):
+        return {"niveau": "danger", "titre": "Bloqué",
+                "texte": "Ne pas acheter / vendre en l'état : le téléphone est lié à un compte ou non activé."}
+    if any(a["niveau"] == "warn" for a in alerts) or findmy is None:
+        return {"niveau": "warn", "titre": "À vérifier",
+                "texte": "Utilisable, mais certains points sont à contrôler (voir ci-dessous)."}
+    return {"niveau": "ok", "titre": "OK",
+            "texte": "Aucun blocage détecté. Termine par les tests guidés pour valider l'écran, Face ID, caméras…"}
+
+
+def live(udid):
+    """Infos qui bougent (charge en cours) — appelé souvent, donc léger."""
+    bat = lockdown(udid, "com.apple.mobile.battery") or {}
+    return {"niveau": bat.get("BatteryCurrentCapacity"), "en_charge": bat.get("BatteryIsCharging"),
+            "externe": bat.get("ExternalConnected")}
 
 
 # ---------------------------------------------------------------- actions rapides

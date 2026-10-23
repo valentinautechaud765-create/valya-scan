@@ -24,6 +24,7 @@
   .tests{display:grid;grid-template-columns:repeat(3,1fr);gap:4px 12px;font-size:12px}
   .tests div:before{content:"✓ ";color:#16a34a;font-weight:700}
   .tests .no:before{content:"– ";color:#9ca3af}.tests .no{color:#9ca3af}
+  .tests .ko:before{content:"✗ ";color:#dc2626}.tests .ko{color:#b91c1c}
   .price{display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding:16px 18px;border-radius:12px;background:#0f172a;color:#fff}
   .price b{font-size:28px}
   footer{margin-top:22px;border-top:1px solid #e5e7eb;padding-top:12px}
@@ -71,17 +72,22 @@
 
   {% set tests = p.tests or {} %}
   <div class="box" style="margin-top:16px"><h3>Contrôles effectués</h3>
+    {% if tests %}
     <div class="tests">
-      {% for t in ["Écran / affichage", "Tactile (tout l'écran)", "Face ID / Touch ID", "Caméra arrière", "Caméra avant", "Haut-parleur", "Écouteur interne", "Micro", "Boutons volume", "Bouton latéral", "Vibreur", "Wi-Fi / Bluetooth", "Réseau / appels", "Charge (câble)", "Charge sans fil", "True Tone", "Capteur de proximité", "Flash"] %}
-        <div class="{{ '' if tests.get(t) else 'no' }}">{{ t }}</div>
+      {% for t, r in tests.items() %}
+        <div class="{{ 'ko' if r == 'ko' else ('no' if r == 'na' else '') }}">{{ t }}{% if r == 'ko' %} — défaut{% endif %}</div>
       {% endfor %}
     </div>
-    <p class="small muted" style="margin:10px 0 0">✓ = testé et fonctionnel · – = non testé</p>
+    <p class="small muted" style="margin:10px 0 0">✓ testé et fonctionnel · ✗ défaut signalé · – non applicable</p>
+    {% else %}<p class="small muted">Contrôles manuels non renseignés.</p>{% endif %}
   </div>
 
   {% if p.reparations %}
   <div class="box" style="margin-top:16px"><h3>Interventions réalisées</h3>
-    {% for r in p.reparations %}<div>{{ r.date }} — <b>{{ r.piece }}</b></div>{% endfor %}
+    {% for r in p.reparations %}<div>{{ r.date }} — <b>{{ r.piece }}</b>{% if r.qualite %} <span class="muted">({{ r.qualite }})</span>{% endif %}</div>{% endfor %}
+    {% if p.reparations | selectattr('qualite', 'in', ['OEM / Premium', 'Compatible']) | list %}
+    <p class="small muted" style="margin:8px 0 0">Une ou plusieurs pièces ne sont pas d'origine Apple : l'iPhone peut afficher « Pièce inconnue » dans Réglages › Général › Informations. Cela n'affecte pas le fonctionnement.</p>
+    {% endif %}
   </div>
   {% endif %}
 

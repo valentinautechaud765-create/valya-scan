@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Valya Scan v3 — serveur local (http://127.0.0.1:5757)."""
+"""Valya Scan — serveur local (http://127.0.0.1:5757)."""
 import csv
 import io
 import os
@@ -17,7 +17,7 @@ import device  # noqa: E402
 import jobs  # noqa: E402
 import sheets  # noqa: E402
 
-VERSION = "3.0.0"
+VERSION = "4.0.0"
 PORT = int(os.environ.get("VALYA_PORT", "5757"))
 
 app = Flask(__name__, static_folder=os.path.join(HERE, "static"), template_folder=os.path.join(HERE, "templates"))
@@ -84,7 +84,10 @@ def scan(udid):
     if not ps["ok"]:
         return fail(ps["message"], 409, appairage=False)
     data = device.full_scan(udid)
-    phone = db.upsert_from_scan(data)
+    phone, changes = db.upsert_from_scan(data)
+    for ch in changes:  # ex. batterie remplacée depuis le dernier branchement
+        data["alertes"].append({"niveau": "info", "texte": "Changement depuis le dernier branchement — %s : %s → %s"
+                                % (ch["champ"], ch["avant"], ch["apres"])})
     sync = None
     settings = db.load_settings()
     if settings.get("sheets_scans_auto") and settings.get("service_account_path"):
@@ -93,7 +96,21 @@ def scan(udid):
             sync = "Scan ajouté à l'onglet « %s »." % settings["sheets_onglet_scans"]
         except sheets.SheetsError as e:
             sync = "Synchro du scan impossible : %s" % e
-    return ok(diagnostic=data, fiche=phone, synchro=sync)
+    fiche = db.get_phone(phone["id"])
+    actifs = [t for t in fiche["tickets"] if t["statut"] not in ("Rendu", "Annulé")]
+    return ok(diagnostic=data, fiche=fiche, changements=changes, synchro=sync,
+              tickets_actifs=actifs, pieces_compatibles=db.parts_for(data.get("modele")))
+
+
+@app.route("/api/live/<udid>")
+def live(udid):
+    return ok(**device.live(udid))
+
+
+@app.route("/api/meta")
+def meta():
+    return ok(statuts=db.STATUTS, etats=db.ETATS, ticket_statuts=db.TICKET_STATUTS,
+              qualites=db.QUALITES, categories=db.CATEGORIES, version=VERSION)
 
 
 @app.route("/api/action/<udid>/<action>", methods=["POST"])
@@ -255,9 +272,9 @@ def phone(pid):
 @app.route("/api/phones/<int:pid>/repairs", methods=["POST"])
 def add_repair(pid):
     d = request.get_json(silent=True) or {}
-    if not (d.get("piece") or "").strip():
-        return fail("Indique la pièce ou l'intervention.")
-    return ok(fiche=db.add_repair(pid, d["piece"].strip(), d.get("cout"), d.get("note")))
+    return ok(fiche=db.add_repair(pid, (d.get("piece") or "").strip(), d.get("cout"), d.get("note"),
+                                  part_id=d.get("part_id") or None, ticket_id=d.get("ticket_id") or None,
+                                  qualite=d.get("qualite") or None))
 
 
 @app.route("/api/phones/<int:pid>/repairs/<int:rid>", methods=["DELETE"])
@@ -265,10 +282,83 @@ def del_repair(pid, rid):
     return ok(fiche=db.delete_repair(pid, rid))
 
 
+@app.route("/api/phones/<int:pid>/compare")
+def compare(pid):
+    a, b = request.args.get("a", type=int), request.args.get("b", type=int)
+    if not a or not b:
+        return fail("Choisis deux diagnostics à comparer.")
+    return ok(comparaison=db.compare_scans(a, b))
+
+
 @app.route("/api/scans/<int:sid>")
 def get_scan(sid):
     s = db.get_scan(sid)
     return ok(diagnostic=s) if s else fail("Scan introuvable.", 404)
+
+
+@app.route("/api/scans/<int:sid>/label", methods=["POST"])
+def label_scan(sid):
+    db.label_scan(sid, ((request.get_json(silent=True) or {}).get("etiquette") or "").strip()[:60])
+    return ok()
+
+
+# ------------------------------------------------------------------ réparations clients
+
+@app.route("/api/tickets", methods=["GET", "POST"])
+def tickets():
+    if request.method == "POST":
+        return ok(ticket=db.create_ticket(request.get_json(silent=True) or {}))
+    return ok(tickets=db.list_tickets(request.args.get("q"), request.args.get("statut") or None,
+                                      request.args.get("actifs") == "1"),
+              statuts=db.TICKET_STATUTS, compteurs=db.ticket_stats())
+
+
+@app.route("/api/tickets/<int:tid>", methods=["GET", "PUT", "DELETE"])
+def ticket(tid):
+    if request.method == "DELETE":
+        db.delete_ticket(tid)
+        return ok()
+    t = db.update_ticket(tid, request.get_json(silent=True) or {}) if request.method == "PUT" else db.get_ticket(tid)
+    return ok(ticket=t) if t else fail("Fiche introuvable.", 404)
+
+
+@app.route("/api/tickets/<int:tid>/repairs", methods=["POST"])
+def ticket_repair(tid):
+    t = db.get_ticket(tid)
+    if not t:
+        return fail("Fiche introuvable.", 404)
+    if not t.get("phone_id"):
+        return fail("Branche l'iPhone du client et associe-le à la fiche avant d'ajouter une intervention.")
+    d = request.get_json(silent=True) or {}
+    db.add_repair(t["phone_id"], (d.get("piece") or "").strip(), d.get("cout"), d.get("note"),
+                  part_id=d.get("part_id") or None, ticket_id=tid, qualite=d.get("qualite") or None)
+    return ok(ticket=db.get_ticket(tid))
+
+
+@app.route("/bon/<int:tid>")
+def ticket_print(tid):
+    t = db.get_ticket(tid)
+    if not t:
+        return "Fiche introuvable", 404
+    p = db.get_phone(t["phone_id"]) if t.get("phone_id") else None
+    return render_template("bon.html", t=t, p=p, d=(p or {}).get("dernier_diagnostic") or {},
+                           s=db.load_settings(), type=request.args.get("type", "depot"))
+
+
+# ------------------------------------------------------------------ stock de pièces
+
+@app.route("/api/parts", methods=["GET", "POST"])
+def parts():
+    if request.method == "POST":
+        return ok(pieces=db.save_part(request.get_json(silent=True) or {}))
+    return ok(pieces=db.list_parts(request.args.get("q")), categories=db.CATEGORIES, qualites=db.QUALITES)
+
+
+@app.route("/api/parts/<int:part_id>", methods=["PUT", "DELETE"])
+def part(part_id):
+    if request.method == "DELETE":
+        return ok(pieces=db.delete_part(part_id))
+    return ok(pieces=db.save_part(request.get_json(silent=True) or {}, part_id))
 
 
 @app.route("/api/export.csv")

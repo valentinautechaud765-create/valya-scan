@@ -9,82 +9,69 @@
 <body>
 <div class="app">
   <aside class="side">
-    <div class="brand"><span class="logo">V</span><div><b>Valya Scan</b><small id="version">v3</small></div></div>
+    <div class="brand"><span class="logo">V</span><div><b>Valya Scan</b><small id="version"></small></div></div>
     <nav>
-      <button class="nav active" data-view="appareil"><i>◉</i>Appareil</button>
+      <button class="nav active" data-view="appareil"><i>◉</i>iPhone branché</button>
+      <button class="nav" data-view="reparations"><i>✚</i>Réparations<span class="pill hidden" id="rep-count"></span></button>
+      <button class="nav" data-view="stock"><i>▤</i>Mes téléphones</button>
+      <button class="nav" data-view="pieces"><i>◫</i>Pièces<span class="pill warn hidden" id="parts-alert"></span></button>
       <button class="nav" data-view="outils"><i>⚙</i>Outils</button>
-      <button class="nav" data-view="stock"><i>▤</i>Stock</button>
       <button class="nav" data-view="taches"><i>≡</i>Tâches<span class="pill hidden" id="busy-count"></span></button>
       <button class="nav" data-view="reglages"><i>✦</i>Réglages</button>
     </nav>
-    <div class="conn" id="conn"><span class="dot"></span><span id="conn-txt">Recherche…</span></div>
+    <div class="conn" id="conn"><span class="dot"></span><div><span id="conn-txt">Recherche…</span><small id="conn-live"></small></div></div>
   </aside>
 
   <main>
-    <!-- ====================== APPAREIL ====================== -->
+    <!-- ====================== IPHONE BRANCHÉ ====================== -->
     <section class="view" id="view-appareil">
       <header class="top">
-        <div><h1>Appareil</h1><p class="muted" id="dev-sub">Branche un iPhone en USB et déverrouille-le.</p></div>
+        <div><h1>iPhone branché</h1><p class="muted" id="dev-sub">Branche un iPhone en USB et déverrouille-le.</p></div>
         <div class="row gap">
-          <button class="btn ghost" id="btn-refresh">Actualiser</button>
-          <button class="btn primary" id="btn-scan" disabled>Lancer le diagnostic</button>
+          <button class="btn ghost" id="btn-refresh" title="Relire l'iPhone">↻ Relancer le diagnostic</button>
         </div>
       </header>
+
       <div id="dev-empty" class="empty">
         <div class="phone-ico"></div>
         <h2>Aucun iPhone détecté</h2>
-        <p>Branche le téléphone avec un câble qui transfère les données, déverrouille-le, puis appuie sur « Faire confiance ».</p>
+        <ol class="steps-simple">
+          <li>Branche l'iPhone avec un câble <b>qui transfère les données</b>.</li>
+          <li>Déverrouille-le.</li>
+          <li>Appuie sur <b>« Se fier »</b> / <b>« Faire confiance »</b> et tape le code.</li>
+        </ol>
+        <p class="muted small">Le diagnostic démarre tout seul.</p>
       </div>
       <div id="dev-pair" class="card warn hidden">
         <h3>Autorisation nécessaire</h3>
         <p id="pair-msg"></p>
-        <button class="btn primary" id="btn-pair">Réessayer l'appairage</button>
+        <button class="btn primary" id="btn-pair">J'ai appuyé sur « Faire confiance »</button>
       </div>
       <div id="dev-recovery" class="card warn hidden">
         <h3>iPhone en mode récupération</h3>
         <p id="rec-msg"></p>
         <div class="row gap wrap">
-          <button class="btn" id="btn-exit-rec">Sortir du mode récupération</button>
-          <button class="btn" data-restore="maj">Mettre à jour iOS</button>
-          <button class="btn danger" data-restore="effacer">Restaurer (effacer)</button>
+          <button class="btn primary" id="btn-exit-rec">Redémarrer normalement</button>
+          <button class="btn" data-restore="maj">Réinstaller iOS (garder les données)</button>
+          <button class="btn danger" data-restore="effacer">Restaurer (tout effacer)</button>
         </div>
       </div>
+      <div id="dev-loading" class="card hidden"><div class="spinner"></div><b>Lecture de l'iPhone…</b><p class="muted small">10 à 20 secondes.</p></div>
       <div id="diag" class="hidden"></div>
     </section>
 
-    <!-- ====================== OUTILS ====================== -->
-    <section class="view hidden" id="view-outils">
-      <header class="top"><div><h1>Outils technicien</h1><p class="muted" id="tools-sub">Sur l'iPhone branché.</p></div></header>
-      <div class="grid3">
-        <div class="card tool"><h3>Alimentation</h3><p class="muted">Commandes envoyées directement à l'iPhone.</p>
-          <div class="row gap wrap"><button class="btn" data-act="redemarrer">Redémarrer</button>
-          <button class="btn" data-act="eteindre">Éteindre</button></div></div>
-        <div class="card tool"><h3>Mode récupération</h3><p class="muted">Pour débloquer un iPhone qui ne démarre plus ou forcer une restauration.</p>
-          <div class="row gap wrap"><button class="btn" data-act="recuperation">Entrer</button>
-          <button class="btn" id="btn-exit-rec2">Sortir</button></div></div>
-        <div class="card tool"><h3>Renommer</h3><p class="muted">Change le nom affiché (Réglages › Général › Informations).</p>
-          <div class="row gap"><input id="rename-in" placeholder="Nouveau nom"><button class="btn" id="btn-rename">OK</button></div></div>
-        <div class="card tool"><h3>Mise à jour / restauration iOS</h3>
-          <p class="muted">Télécharge la dernière version signée par Apple. <b>Mise à jour</b> : garde les données. <b>Restauration</b> : efface tout.</p>
-          <input id="ipsw-in" placeholder="Optionnel : chemin d'un fichier .ipsw déjà téléchargé">
-          <div class="row gap wrap"><button class="btn" data-restore="maj">Mettre à jour</button>
-          <button class="btn danger" data-restore="effacer">Restaurer (effacer)</button></div></div>
-        <div class="card tool"><h3>Sauvegarde complète</h3><p class="muted">Copie l'iPhone sur le Mac avant une réparation ou une restauration.</p>
-          <button class="btn" id="btn-backup">Sauvegarder</button></div>
-        <div class="card tool"><h3>Rapports de plantage</h3><p class="muted">Récupère les « panic » : redémarrages en boucle, pièce défectueuse, nappe mal branchée…</p>
-          <button class="btn" id="btn-crash">Analyser</button></div>
-        <div class="card tool"><h3>Journal système en direct</h3><p class="muted">Ce que l'iPhone fait en temps réel (utile pour tester une pièce).</p>
-          <button class="btn" id="btn-syslog">Ouvrir</button></div>
-        <div class="card tool"><h3>Apps installées</h3><p class="muted">Vérifie qu'il ne reste rien du vendeur.</p>
-          <button class="btn" id="btn-apps">Lister</button></div>
-        <div class="card tool"><h3>Outils installés</h3><div id="tools-list" class="small"></div></div>
-      </div>
-      <div id="apps-out" class="card hidden"></div>
+    <!-- ====================== RÉPARATIONS ====================== -->
+    <section class="view hidden" id="view-reparations">
+      <header class="top"><div><h1>Réparations clients</h1><p class="muted">Bons de dépôt, suivi, interventions et restitution.</p></div>
+        <button class="btn primary" id="btn-new-ticket">+ Nouvelle réparation</button></header>
+      <div class="chips" id="ticket-chips"></div>
+      <div class="row gap filters"><input id="tq" placeholder="Rechercher : client, téléphone, n° de fiche, IMEI…"></div>
+      <div id="ticket-list" class="cards-list"></div>
     </section>
 
-    <!-- ====================== STOCK ====================== -->
+    <!-- ====================== MES TÉLÉPHONES ====================== -->
     <section class="view hidden" id="view-stock">
-      <header class="top"><div><h1>Stock &amp; historique</h1><p class="muted">Chaque iPhone diagnostiqué est enregistré ici.</p></div>
+      <header class="top"><div><h1>Mes téléphones</h1><p class="muted">Chaque iPhone branché est enregistré ici, avec tout son historique.</p></div>
         <a class="btn ghost" href="/api/export.csv">Exporter CSV</a></header>
       <div class="kpis" id="kpis"></div>
       <div class="row gap filters">
@@ -94,6 +81,46 @@
       <div class="table-wrap"><table id="tbl"><thead><tr>
         <th>Réf.</th><th>Modèle</th><th>Stockage</th><th>Batterie</th><th>État</th><th>Achat</th><th>Vente</th><th>Marge</th><th>Statut</th><th></th>
       </tr></thead><tbody></tbody></table></div>
+    </section>
+
+    <!-- ====================== PIÈCES ====================== -->
+    <section class="view hidden" id="view-pieces">
+      <header class="top"><div><h1>Stock de pièces</h1><p class="muted">Quand tu utilises une pièce dans une réparation, le stock baisse tout seul.</p></div>
+        <button class="btn primary" id="btn-new-part">+ Ajouter une pièce</button></header>
+      <div class="row gap filters"><input id="pq" placeholder="Rechercher : écran, batterie, iPhone 13…"></div>
+      <div class="table-wrap"><table id="parts-tbl"><thead><tr>
+        <th>Pièce</th><th>Catégorie</th><th>Compatible</th><th>Qualité</th><th>Fournisseur</th><th>Coût</th><th>Stock</th><th></th>
+      </tr></thead><tbody></tbody></table></div>
+    </section>
+
+    <!-- ====================== OUTILS ====================== -->
+    <section class="view hidden" id="view-outils">
+      <header class="top"><div><h1>Outils technicien</h1><p class="muted" id="tools-sub">Sur l'iPhone branché.</p></div></header>
+      <div class="grid3">
+        <div class="card tool"><h3>Alimentation</h3><p class="muted">Commandes envoyées directement à l'iPhone.</p>
+          <div class="row gap wrap"><button class="btn" data-act="redemarrer">Redémarrer</button>
+          <button class="btn" data-act="eteindre">Éteindre</button></div></div>
+        <div class="card tool"><h3>Mode récupération</h3><p class="muted">Pour un iPhone qui ne démarre plus, ou pour forcer une restauration.</p>
+          <div class="row gap wrap"><button class="btn" data-act="recuperation">Entrer</button>
+          <button class="btn" id="btn-exit-rec2">Sortir</button></div></div>
+        <div class="card tool"><h3>Renommer</h3><p class="muted">Nom affiché dans Réglages › Général › Informations.</p>
+          <div class="row gap"><input id="rename-in" placeholder="Nouveau nom"><button class="btn" id="btn-rename">OK</button></div></div>
+        <div class="card tool"><h3>Mise à jour / restauration iOS</h3>
+          <p class="muted"><b>Mise à jour</b> : garde les données. <b>Restauration</b> : efface tout (remise à zéro avant vente).</p>
+          <input id="ipsw-in" placeholder="Optionnel : chemin d'un fichier .ipsw déjà téléchargé">
+          <div class="row gap wrap"><button class="btn" data-restore="maj">Mettre à jour</button>
+          <button class="btn danger" data-restore="effacer">Restaurer (effacer)</button></div></div>
+        <div class="card tool"><h3>Sauvegarde complète</h3><p class="muted">À faire avant une réparation risquée ou une restauration (téléphone client).</p>
+          <button class="btn" id="btn-backup">Sauvegarder</button></div>
+        <div class="card tool"><h3>Rapports de plantage</h3><p class="muted">Redémarrages en boucle ? Les « panic » indiquent souvent la pièce ou la nappe en cause.</p>
+          <button class="btn" id="btn-crash">Analyser</button></div>
+        <div class="card tool"><h3>Journal système en direct</h3><p class="muted">Ce que l'iPhone fait en temps réel, utile pour tester une pièce.</p>
+          <button class="btn" id="btn-syslog">Ouvrir</button></div>
+        <div class="card tool"><h3>Apps installées</h3><p class="muted">Vérifie qu'il ne reste rien de l'ancien propriétaire.</p>
+          <button class="btn" id="btn-apps">Lister</button></div>
+        <div class="card tool"><h3>Outils installés</h3><div id="tools-list" class="small"></div></div>
+      </div>
+      <div id="apps-out" class="card hidden" style="margin-top:14px"></div>
     </section>
 
     <!-- ====================== TÂCHES ====================== -->
@@ -115,12 +142,15 @@
       <header class="top"><div><h1>Réglages</h1><p class="muted" id="data-dir"></p></div></header>
       <div class="grid2">
         <div class="card">
-          <h3>Rapport de vente</h3>
+          <h3>Boutique (rapports et bons)</h3>
           <label>Nom de la boutique<input data-set="boutique"></label>
           <label>Slogan<input data-set="slogan"></label>
           <label>Contact (Snap, téléphone…)<input data-set="contact"></label>
-          <label>Garantie affichée<input data-set="garantie"></label>
-          <button class="btn primary" id="btn-save-set">Enregistrer</button>
+          <label>Adresse affichée sur les bons (laisse vide pour ne pas l'afficher)<input data-set="adresse"></label>
+          <label>Garantie affichée sur les rapports de vente<input data-set="garantie"></label>
+          <label>Garantie affichée sur les réparations<input data-set="garantie_reparation"></label>
+          <label class="check"><input type="checkbox" data-set="son_connexion"> Son quand un iPhone est branché</label>
+          <button class="btn primary" data-save-set>Enregistrer</button>
         </div>
         <div class="card">
           <h3>Synchro Google Sheets (STOCKFLOW)</h3>
@@ -131,7 +161,7 @@
           <label class="check"><input type="checkbox" data-set="sheets_scans_auto"> Ajouter automatiquement chaque diagnostic à l'onglet scans (s'il existe)</label>
           <label>Clé du compte de service (.json)<input type="file" id="key-file" accept=".json,application/json"></label>
           <p class="small" id="key-state"></p>
-          <div class="row gap"><button class="btn primary" id="btn-save-set2">Enregistrer</button>
+          <div class="row gap"><button class="btn primary" data-save-set>Enregistrer</button>
           <button class="btn" id="btn-test-sheets">Tester la connexion</button></div>
           <p class="small" id="test-out"></p>
         </div>
@@ -140,10 +170,27 @@
   </main>
 </div>
 
-<!-- Fiche téléphone -->
-<div class="modal hidden" id="m-phone"><div class="sheet wide">
-  <div class="row between"><h2 id="mp-title"></h2><button class="x" data-close>×</button></div>
-  <div id="mp-body"></div>
+<!-- Fiche téléphone / ticket / pièce : contenu injecté -->
+<div class="modal hidden" id="m-big"><div class="sheet wide">
+  <div class="row between"><h2 id="mb-title"></h2><button class="x" data-close>×</button></div>
+  <div id="mb-body"></div>
+</div></div>
+
+<!-- Tests guidés -->
+<div class="modal hidden" id="m-tests"><div class="sheet">
+  <div class="row between"><h2>Tests guidés</h2><button class="x" data-close>×</button></div>
+  <div class="progress"><i id="t-bar"></i></div>
+  <p class="muted small" id="t-count"></p>
+  <h3 id="t-name" class="t-name"></h3>
+  <p id="t-help" class="t-help"></p>
+  <div class="t-buttons">
+    <button class="btn big okb" data-res="ok">✓ Fonctionne</button>
+    <button class="btn big kob" data-res="ko">✗ Défaut</button>
+  </div>
+  <div class="row between" style="margin-top:12px">
+    <button class="btn ghost small" id="t-prev">← Précédent</button>
+    <button class="btn ghost small" data-res="na">Passer / non applicable</button>
+  </div>
 </div></div>
 
 <!-- Confirmation générique -->

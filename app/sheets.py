@@ -3,9 +3,10 @@
 
 Règles appliquées (les tiennes) :
 - rien n'est écrit sans que tu aies validé le récapitulatif complet dans l'app ;
-- on n'écrit que dans les colonnes A à I et K, jamais dans J (Marge) ;
-- avant d'écrire : la ligne cible doit avoir une Référence vide (ou la même référence
-  pour une mise à jour), une formule en J et une liste déroulante en K, sinon on s'arrête ;
+- les colonnes sont repérées par leur titre (ligne 1), donc le tableau peut évoluer ;
+- on n'écrit jamais dans la colonne « Marge » (formule) ni dans les colonnes inconnues ;
+- avant d'écrire : la ligne cible doit être vide (ou être celle de ce téléphone pour une
+  mise à jour), avoir sa formule de Marge et, s'il y a une colonne Statut, sa liste déroulante ;
 - après l'écriture : on relit la ligne et on compare.
 """
 import base64
@@ -24,8 +25,6 @@ except ImportError:  # pragma: no cover
 
 API = "https://sheets.googleapis.com/v4/spreadsheets/"
 SCOPE = "https://www.googleapis.com/auth/spreadsheets"
-COLS_AI = ["Référence", "Modèle", "Stockage", "État", "Batterie (%)", "Date d'achat",
-           "Prix d'achat (€)", "frais (€)", "Prix vente (€)"]
 _token_cache = {}
 
 
@@ -140,25 +139,70 @@ def _values(s, sid, rng, render="FORMATTED_VALUE"):
     return d.get("values", [])
 
 
-def _row_state(s, settings, row):
+def _col(n):
+    """0 -> A, 25 -> Z, 26 -> AA."""
+    out = ""
+    n += 1
+    while n:
+        n, r = divmod(n - 1, 26)
+        out = chr(65 + r) + out
+    return out
+
+
+def _norm(h):
+    h = (h or "").strip().lower()
+    for a, b in (("é", "e"), ("è", "e"), ("ê", "e"), ("à", "a"), ("’", "'")):
+        h = h.replace(a, b)
+    return re.sub(r"\s*\(.*?\)\s*", "", h).strip()
+
+
+# en-tête du Google Sheets (normalisé) -> champ de la fiche Valya Scan
+HEADER_MAP = {
+    "imei": "imei", "reference": "reference", "ref": "reference", "modele": "modele",
+    "stockage": "stockage", "etat": "etat", "batterie": "sante_batterie",
+    "date d'achat": "date_achat", "date de vente": "date_vente", "prix d'achat": "prix_achat",
+    "frais": "frais", "prix vente": "prix_vente", "prix de vente": "prix_vente", "statut": "statut",
+}
+
+
+def _layout(s, settings):
+    """Lit la ligne d'en-tête : le tableau peut changer de colonnes, on s'adapte."""
     sid, tab = settings["sheets_id"], _q(settings["sheets_onglet_stock"])
-    vals = _values(s, sid, "%s!A%d:K%d" % (tab, row, row))
-    vals = (vals[0] if vals else []) + [""] * 11
-    formula = _values(s, sid, "%s!J%d" % (tab, row), render="FORMULA")
-    formula = formula[0][0] if formula and formula[0] else ""
-    meta = _get(s, API + sid, ranges="%s!K%d" % (tab, row),
-                fields="sheets(data(rowData(values(dataValidation))))")
-    options = []
-    try:
-        dv = meta["sheets"][0]["data"][0]["rowData"][0]["values"][0]["dataValidation"]
-        cond = dv["condition"]
-        if cond.get("type") == "ONE_OF_LIST":
-            options = [v.get("userEnteredValue") for v in cond.get("values", [])]
-        else:
-            options = ["(liste issue d'une plage)"]
-    except (KeyError, IndexError):
+    head = _values(s, sid, "%s!1:1" % tab)
+    head = head[0] if head else []
+    cols, marge = {}, None
+    for i, h in enumerate(head):
+        n = _norm(h)
+        if n.startswith("marge"):
+            marge = i
+        elif n in HEADER_MAP and HEADER_MAP[n] not in cols:
+            cols[HEADER_MAP[n]] = i
+    if "reference" not in cols:
+        raise SheetsError("Colonne « Référence » introuvable dans la 1re ligne de l'onglet « %s »." % settings["sheets_onglet_stock"])
+    return {"entetes": head, "cols": cols, "marge": marge, "largeur": max(len(head), 1)}
+
+
+def _row_state(s, settings, lay, row):
+    sid, tab = settings["sheets_id"], _q(settings["sheets_onglet_stock"])
+    last = _col(lay["largeur"] - 1)
+    vals = _values(s, sid, "%s!A%d:%s%d" % (tab, row, last, row))
+    vals = (vals[0] if vals else []) + [""] * lay["largeur"]
+    formula = ""
+    if lay["marge"] is not None:
+        f = _values(s, sid, "%s!%s%d" % (tab, _col(lay["marge"]), row), render="FORMULA")
+        formula = f[0][0] if f and f[0] else ""
+    options = None
+    if "statut" in lay["cols"]:
+        meta = _get(s, API + sid, ranges="%s!%s%d" % (tab, _col(lay["cols"]["statut"]), row),
+                    fields="sheets(data(rowData(values(dataValidation))))")
         options = []
-    return {"valeurs": vals[:11], "formule_marge": formula, "options_statut": options}
+        try:
+            cond = meta["sheets"][0]["data"][0]["rowData"][0]["values"][0]["dataValidation"]["condition"]
+            options = ([v.get("userEnteredValue") for v in cond.get("values", [])]
+                       if cond.get("type") == "ONE_OF_LIST" else ["(liste issue d'une plage)"])
+        except (KeyError, IndexError):
+            options = []
+    return {"valeurs": vals[:lay["largeur"]], "formule_marge": formula, "options_statut": options}
 
 
 def _fmt_num(v):
@@ -167,61 +211,67 @@ def _fmt_num(v):
     return float(v) if float(v) != int(float(v)) else int(float(v))
 
 
-def phone_to_row(p):
-    date = p.get("date_achat") or ""
-    m = re.match(r"(\d{4})-(\d{2})-(\d{2})", date)
-    if m:
-        date = "%s/%s/%s" % (m.group(3), m.group(2), m.group(1))
+def phone_values(p):
+    """Valeurs à écrire, par champ, au format du tableau (stockage « 128 », dates AAAA-MM-JJ)."""
     frais = (p.get("frais") or 0) + (p.get("cout_reparations") or 0)
-    return [p.get("reference") or "", p.get("modele") or "", p.get("stockage") or "",
-            p.get("etat") or "", "" if p.get("sante_batterie") is None else int(p["sante_batterie"]),
-            date, _fmt_num(p.get("prix_achat")), _fmt_num(frais) if frais else "",
-            _fmt_num(p.get("prix_vente"))], p.get("statut") or ""
+    sto = re.sub(r"\s*(go|gb)$", "", (p.get("stockage") or "").strip(), flags=re.I)
+    if sto.lower().endswith("to"):
+        sto = str(int(re.sub(r"\D", "", sto) or 1) * 1024)
+    return {
+        "imei": p.get("imei") or "", "reference": p.get("reference") or "", "modele": p.get("modele") or "",
+        "stockage": sto, "etat": p.get("etat") or "",
+        "sante_batterie": "" if p.get("sante_batterie") is None else int(p["sante_batterie"]),
+        "date_achat": p.get("date_achat") or "", "date_vente": p.get("date_vente") or "",
+        "prix_achat": _fmt_num(p.get("prix_achat")), "frais": _fmt_num(frais) if frais else "",
+        "prix_vente": _fmt_num(p.get("prix_vente")), "statut": p.get("statut") or "",
+    }
 
 
 def prepare(settings, phone):
     """Calcule la ligne cible et vérifie qu'on peut écrire. Ne modifie rien."""
     s = _session(settings)
     sid, tab = settings["sheets_id"], _q(settings["sheets_onglet_stock"])
-    col_a = _values(s, sid, "%s!A1:A2000" % tab)
+    lay = _layout(s, settings)
+    cref = lay["cols"]["reference"]
+    cimei = lay["cols"].get("imei")
+    data = _values(s, sid, "%s!A1:%s2000" % (tab, _col(lay["largeur"] - 1)))
+    cell = lambda r, c: (data[r - 1][c] if len(data) >= r and c is not None and len(data[r - 1]) > c else "").strip()
     mode, row = "ajout", None
-    if phone.get("sheets_ligne"):
-        r = phone["sheets_ligne"]
-        cur = col_a[r - 1][0] if len(col_a) >= r and col_a[r - 1] else ""
-        if cur == phone.get("reference"):
+    ref, imei = phone.get("reference") or "", phone.get("imei") or ""
+    for r in range(2, len(data) + 1):
+        if (ref and cell(r, cref) == ref) or (imei and cimei is not None and cell(r, cimei) == imei):
             mode, row = "mise à jour", r
+            break
     if row is None:
-        for ref_row, cells in enumerate(col_a, start=1):
-            if ref_row > 1 and cells and cells[0] == phone.get("reference"):
-                mode, row = "mise à jour", ref_row
+        key_cols = [c for c in (cref, cimei, lay["cols"].get("modele")) if c is not None]
+        row = max(2, len(data) + 1)
+        for r in range(2, len(data) + 1):
+            if not any(cell(r, c) for c in key_cols):
+                row = r
                 break
-    if row is None:
-        row = 2
-        for i, cells in enumerate(col_a, start=1):
-            if i == 1:
-                continue
-            if not cells or not str(cells[0]).strip():
-                row = i
-                break
-        else:
-            row = max(2, len(col_a) + 1)
-    state = _row_state(s, settings, row)
-    values, statut = phone_to_row(phone)
+    state = _row_state(s, settings, lay, row)
+    vals = phone_values(phone)
     problems = []
-    if mode == "ajout" and str(state["valeurs"][0]).strip():
-        problems.append("La ligne %d n'est pas vide (Référence = %s)." % (row, state["valeurs"][0]))
-    if not str(state["formule_marge"]).startswith("="):
-        problems.append("La ligne %d n'a pas la formule de Marge en colonne J." % row)
-    if not state["options_statut"]:
-        problems.append("La ligne %d n'a pas la liste déroulante de Statut en colonne K." % row)
-    elif state["options_statut"][0] != "(liste issue d'une plage)" and statut not in state["options_statut"]:
-        problems.append("Le statut « %s » n'existe pas dans la liste déroulante (%s)." %
-                        (statut, ", ".join(state["options_statut"])))
-    recap = [{"colonne": c, "avant": state["valeurs"][i], "apres": values[i]} for i, c in enumerate(COLS_AI)]
-    recap.append({"colonne": "Marge (€) — J", "avant": state["valeurs"][9], "apres": "(formule conservée, non touchée)"})
-    recap.append({"colonne": "Statut", "avant": state["valeurs"][10], "apres": statut})
-    return {"mode": mode, "ligne": row, "recap": recap, "problemes": problems,
-            "valeurs": values, "statut": statut}
+    if mode == "ajout" and any(str(state["valeurs"][c]).strip() for c in lay["cols"].values()):
+        problems.append("La ligne %d n'est pas vide." % row)
+    if lay["marge"] is not None and not str(state["formule_marge"]).startswith("="):
+        problems.append("La ligne %d n'a pas de formule dans la colonne Marge (%s) : ajoute-la (copie celle de la ligne 2) puis relance."
+                        % (row, _col(lay["marge"])))
+    if state["options_statut"] is not None:
+        opts = state["options_statut"]
+        if not opts:
+            problems.append("La ligne %d n'a pas la liste déroulante dans la colonne Statut." % row)
+        elif opts[0] != "(liste issue d'une plage)" and vals["statut"] not in opts:
+            problems.append("Le statut « %s » n'existe pas dans la liste déroulante (%s)." % (vals["statut"], ", ".join(opts)))
+    writes, recap = [], []
+    for i, h in enumerate(lay["entetes"]):
+        field = next((f for f, c in lay["cols"].items() if c == i), None)
+        if i == lay["marge"]:
+            recap.append({"colonne": "%s (%s)" % (h, _col(i)), "avant": state["valeurs"][i], "apres": "(formule conservée, non touchée)"})
+        elif field:
+            writes.append((i, vals[field]))
+            recap.append({"colonne": "%s (%s)" % (h, _col(i)), "avant": state["valeurs"][i], "apres": vals[field]})
+    return {"mode": mode, "ligne": row, "recap": recap, "problemes": problems, "ecritures": writes}
 
 
 def write(settings, phone, row, expected_mode):
@@ -234,23 +284,20 @@ def write(settings, phone, row, expected_mode):
     s = _session(settings)
     sid, tab = settings["sheets_id"], _q(settings["sheets_onglet_stock"])
     body = {"valueInputOption": "USER_ENTERED", "data": [
-        {"range": "%s!A%d:I%d" % (tab, row, row), "values": [plan["valeurs"]]},
-        {"range": "%s!K%d" % (tab, row), "values": [[plan["statut"]]]},
-    ]}
+        {"range": "%s!%s%d" % (tab, _col(c), row), "values": [[v]]} for c, v in plan["ecritures"]]}
     r = s.post(API + sid + "/values:batchUpdate", json=body, timeout=20)
     if r.status_code != 200:
         raise SheetsError(_err(r))
-    after = _row_state(s, settings, row)
+    lay = _layout(s, settings)
+    after = _row_state(s, settings, lay, row)
     check = []
-    for i, c in enumerate(COLS_AI):
-        want, got = str(plan["valeurs"][i]), str(after["valeurs"][i])
-        ok = _same(want, got)
-        check.append({"colonne": c, "attendu": want, "lu": got, "ok": ok})
-    check.append({"colonne": "Statut", "attendu": plan["statut"], "lu": after["valeurs"][10],
-                  "ok": plan["statut"] == after["valeurs"][10]})
-    check.append({"colonne": "Marge (J)", "attendu": "formule", "lu": after["formule_marge"],
-                  "ok": str(after["formule_marge"]).startswith("=")})
-    return {"ligne": row, "verification": check, "tout_ok": all(c["ok"] for c in check)}
+    for c, v in plan["ecritures"]:
+        got = str(after["valeurs"][c])
+        check.append({"colonne": lay["entetes"][c], "attendu": str(v), "lu": got, "ok": _same(str(v), got)})
+    if lay["marge"] is not None:
+        check.append({"colonne": "Marge", "attendu": "formule", "lu": after["formule_marge"],
+                      "ok": str(after["formule_marge"]).startswith("=")})
+    return {"ligne": row, "verification": check, "tout_ok": all(x["ok"] for x in check)}
 
 
 def _same(want, got):
@@ -265,11 +312,15 @@ def _same(want, got):
     a, b = norm(want), norm(got)
     if a == b:
         return True
-    # dates : 23/10/2026 peut être relu 23/10/26
-    try:
-        return datetime.strptime(want, "%d/%m/%Y") == datetime.strptime(got, "%d/%m/%y")
-    except ValueError:
-        return False
+    # dates : 2026-10-23 peut être relue 23/10/2026
+    for fw in ("%Y-%m-%d", "%d/%m/%Y"):
+        for fg in ("%Y-%m-%d", "%d/%m/%Y", "%d/%m/%y"):
+            try:
+                if datetime.strptime(want, fw) == datetime.strptime(got, fg):
+                    return True
+            except ValueError:
+                pass
+    return False
 
 
 def append_scan(settings, phone, scan):

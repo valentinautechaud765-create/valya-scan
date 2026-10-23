@@ -24,15 +24,7 @@ echo "  ║         VALYA  SCAN          ║"
 echo "  ╚══════════════════════════════╝"
 echo ""
 
-# --- 0. Déjà ouvert ? -----------------------------------------------------------
-if curl -sf --max-time 2 "$URL/api/settings" 2>/dev/null | grep -q reglages; then
-  echo "  Valya Scan tourne déjà : ouverture dans le navigateur."
-  open "$URL"
-  sleep 2
-  exit 0
-fi
-
-# --- 0 bis. Mise à jour automatique depuis GitHub ---------------------------------
+# --- 0. Mise à jour automatique depuis GitHub ---------------------------------
 if [ -d "$RES/.git" ] && command -v git >/dev/null 2>&1; then
   echo "  → Recherche de mise à jour…"
   AVANT="$(git -C "$RES" rev-parse --short HEAD 2>/dev/null)"
@@ -48,6 +40,20 @@ if [ -d "$RES/.git" ] && command -v git >/dev/null 2>&1; then
     echo "  (Mise à jour impossible pour l'instant : pas d'Internet ou accès GitHub expiré. On continue.)"
   fi
   echo ""
+fi
+
+# --- 0 ter. Une ancienne session tourne encore ? ------------------------------------
+if curl -sf --max-time 2 "$URL/api/settings" 2>/dev/null | grep -q reglages; then
+  if curl -sf --max-time 2 "$URL/api/jobs" 2>/dev/null | grep -q '"status": *"en cours"'; then
+    echo "  Valya Scan tourne déjà et une tâche est en cours (restauration, sauvegarde…)."
+    echo "  On ne l'interrompt pas : ouverture dans le navigateur."
+    open "$URL"
+    sleep 2
+    exit 0
+  fi
+  echo "  → Arrêt de l'ancienne session de Valya Scan…"
+  lsof -ti tcp:"$VALYA_PORT" -sTCP:LISTEN 2>/dev/null | xargs kill 2>/dev/null
+  sleep 1
 fi
 
 # --- 1. python3 (outils de développement Apple) ---------------------------------

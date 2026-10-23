@@ -17,11 +17,12 @@ import device  # noqa: E402
 import jobs  # noqa: E402
 import sheets  # noqa: E402
 
-VERSION = "4.0.0"
+VERSION = "4.0.1"
 PORT = int(os.environ.get("VALYA_PORT", "5757"))
 
 app = Flask(__name__, static_folder=os.path.join(HERE, "static"), template_folder=os.path.join(HERE, "templates"))
 app.config["JSON_AS_ASCII"] = False
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 db.init()
 
 FIRMWARE_DIR = os.path.join(db.DATA_DIR, "Firmwares")
@@ -55,7 +56,10 @@ def _val_err(e):
 
 @app.route("/")
 def index():
-    return send_from_directory(app.static_folder, "index.html")
+    # numéro de version dans les liens : le navigateur recharge bien la nouvelle interface après une mise à jour
+    with open(os.path.join(app.static_folder, "index.html"), "r", encoding="utf-8") as f:
+        html = f.read().replace(".css\"", ".css?v=%s\"" % VERSION).replace(".js\"", ".js?v=%s\"" % VERSION)
+    return Response(html, mimetype="text/html", headers={"Cache-Control": "no-store"})
 
 
 # ------------------------------------------------------------------ appareil

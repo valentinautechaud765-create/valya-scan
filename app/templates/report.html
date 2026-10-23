@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Rapport {{ p.reference }} — {{ s.boutique }}</title>
+<style>
+  @page{size:A4;margin:14mm}
+  *{box-sizing:border-box}
+  body{font:13px/1.45 -apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;color:#111827;margin:0;background:#eef1f6}
+  .page{max-width:800px;margin:24px auto;background:#fff;padding:36px 40px;border-radius:14px;box-shadow:0 10px 40px #0001}
+  header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #2f7bff;padding-bottom:16px}
+  .brand{font-size:26px;font-weight:800;letter-spacing:-.03em}.brand span{color:#2f7bff}
+  .muted{color:#6b7280}.small{font-size:11.5px}
+  h1{font-size:24px;margin:22px 0 2px;letter-spacing:-.02em}
+  .badges{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 18px}
+  .b{padding:4px 10px;border-radius:99px;font-size:12px;font-weight:600;background:#f3f4f6}
+  .ok{background:#dcfce7;color:#166534}.warn{background:#fef3c7;color:#92400e}.danger{background:#fee2e2;color:#991b1b}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .box{border:1px solid #e5e7eb;border-radius:12px;padding:14px 16px}
+  .box h3{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#2f7bff}
+  dl{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:0}dt{color:#6b7280}dd{margin:0;font-weight:600}
+  .bat{display:flex;align-items:center;gap:16px}
+  .big{font-size:40px;font-weight:800;letter-spacing:-.04em}
+  .tests{display:grid;grid-template-columns:repeat(3,1fr);gap:4px 12px;font-size:12px}
+  .tests div:before{content:"✓ ";color:#16a34a;font-weight:700}
+  .tests .no:before{content:"– ";color:#9ca3af}.tests .no{color:#9ca3af}
+  .price{display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding:16px 18px;border-radius:12px;background:#0f172a;color:#fff}
+  .price b{font-size:28px}
+  footer{margin-top:22px;border-top:1px solid #e5e7eb;padding-top:12px}
+  .actions{max-width:800px;margin:16px auto 0;text-align:right}
+  .actions button{background:#2f7bff;color:#fff;border:0;border-radius:10px;padding:10px 16px;font-weight:600;cursor:pointer;font-size:13px}
+  @media print{body{background:#fff}.page{box-shadow:none;margin:0;padding:0;max-width:none}.actions{display:none}}
+</style>
+</head>
+<body>
+{% set b = d.batterie or {} %}
+{% set st = d.stockage or {} %}
+<div class="actions"><button onclick="window.print()">Imprimer / Enregistrer en PDF</button></div>
+<div class="page">
+  <header>
+    <div><div class="brand">{{ s.boutique }}<span>.</span></div><div class="muted small">{{ s.slogan }}</div></div>
+    <div style="text-align:right" class="small"><b>Rapport de contrôle</b><br>{{ p.reference }}<br><span class="muted">{{ d.scanne_le or p.maj_le }}</span></div>
+  </header>
+
+  <h1>{{ p.modele }}{% if p.stockage %} · {{ p.stockage }}{% endif %}</h1>
+  <div class="muted">{% if p.couleur %}{{ p.couleur }} · {% endif %}{% if p.etat %}{{ p.etat }}{% endif %}</div>
+  <div class="badges">
+    {% if d.activation in ("Activated", "FactoryActivated") %}<span class="b ok">Activé · utilisable</span>{% elif d.activation %}<span class="b danger">Non activé</span>{% endif %}
+    {% if d.localiser == False %}<span class="b ok">iCloud / Localiser désactivé</span>{% elif d.localiser %}<span class="b danger">Localiser activé</span>{% endif %}
+    {% if b.sante %}<span class="b {{ 'ok' if b.sante >= 85 else 'warn' }}">Batterie {{ b.sante }} %</span>{% endif %}
+    {% if d.origine %}<span class="b {{ 'ok' if d.origine_niveau == 'ok' else 'warn' }}">{{ d.origine }}</span>{% endif %}
+    {% if s.garantie %}<span class="b">{{ s.garantie }}</span>{% endif %}
+  </div>
+
+  <div class="grid">
+    <div class="box"><h3>Identification</h3><dl>
+      <dt>Numéro de série</dt><dd>{{ p.serie or '—' }}</dd>
+      <dt>IMEI</dt><dd>{{ p.imei or '—' }}</dd>
+      {% if d.imei2 %}<dt>IMEI 2</dt><dd>{{ d.imei2 }}</dd>{% endif %}
+      <dt>Référence</dt><dd>{{ d.numero_modele or '—' }}</dd>
+      <dt>Région</dt><dd>{{ d.region or '—' }}</dd>
+      <dt>Version iOS</dt><dd>{{ d.ios or p.ios or '—' }}</dd>
+    </dl></div>
+    <div class="box"><h3>Batterie</h3>
+      <div class="bat"><div class="big">{{ (b.sante ~ ' %') if b.sante else '—' }}</div>
+        <dl><dt>Capacité max.</dt><dd>{{ (b.sante ~ ' %') if b.sante else 'voir Réglages' }}</dd>
+        <dt>Cycles</dt><dd>{{ b.cycles if b.cycles is not none else '—' }}</dd>
+        {% if b.capacite_origine %}<dt>Origine</dt><dd>{{ b.capacite_origine }} mAh</dd>{% endif %}</dl></div>
+    </div>
+  </div>
+
+  {% set tests = p.tests or {} %}
+  <div class="box" style="margin-top:16px"><h3>Contrôles effectués</h3>
+    <div class="tests">
+      {% for t in ["Écran / affichage", "Tactile (tout l'écran)", "Face ID / Touch ID", "Caméra arrière", "Caméra avant", "Haut-parleur", "Écouteur interne", "Micro", "Boutons volume", "Bouton latéral", "Vibreur", "Wi-Fi / Bluetooth", "Réseau / appels", "Charge (câble)", "Charge sans fil", "True Tone", "Capteur de proximité", "Flash"] %}
+        <div class="{{ '' if tests.get(t) else 'no' }}">{{ t }}</div>
+      {% endfor %}
+    </div>
+    <p class="small muted" style="margin:10px 0 0">✓ = testé et fonctionnel · – = non testé</p>
+  </div>
+
+  {% if p.reparations %}
+  <div class="box" style="margin-top:16px"><h3>Interventions réalisées</h3>
+    {% for r in p.reparations %}<div>{{ r.date }} — <b>{{ r.piece }}</b></div>{% endfor %}
+  </div>
+  {% endif %}
+
+  {% if p.prix_vente %}
+  <div class="price"><span>Prix</span><b>{{ '%.0f' % p.prix_vente }} €</b></div>
+  {% endif %}
+
+  <footer class="small muted">
+    Diagnostic réalisé par connexion USB directe avec l'iPhone (données lues sur l'appareil, non saisies à la main).
+    {% if s.contact %}<br>Contact : <b>{{ s.contact }}</b>{% endif %}
+  </footer>
+</div>
+</body>
+</html>

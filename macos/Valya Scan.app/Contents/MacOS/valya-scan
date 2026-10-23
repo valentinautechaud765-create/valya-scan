@@ -1,0 +1,9 @@
+#!/bin/bash
+# Lance Valya Scan (code dans ~/ValyaScan, mis à jour depuis GitHub à chaque lancement).
+LANCEUR="$HOME/ValyaScan/run.sh"
+if [ ! -f "$LANCEUR" ]; then
+  osascript -e 'display alert "Valya Scan n'"'"'est pas installé" message "Le dossier ~/ValyaScan est introuvable. Refais l'"'"'installation décrite dans le README du dépôt valya-scan."'
+  exit 1
+fi
+chmod +x "$LANCEUR" 2>/dev/null
+open -a Terminal "$LANCEUR"

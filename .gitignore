@@ -1,5 +1,8 @@
-# Fiches de stock locales (données, pas du code)
+# Données locales (jamais dans le dépôt)
 stock_valya.json
+*.db
+reglages.json
+compte-service.json
 
 # Python
 __pycache__/

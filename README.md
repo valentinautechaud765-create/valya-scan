@@ -1,42 +1,49 @@
 # Valya Scan
 
-Outil de diagnostic d'iPhone pour l'achat-revente et la réparation (activité Valya).
+App de technicien iPhone pour l'activité Valya (achat-revente et réparation) : diagnostic complet par USB, outils de réparation, stock, rapports de vente et synchro avec le Google Sheets de STOCKFLOW.
 
-Branche un iPhone en USB sur ton Mac, ouvre l'app dans le navigateur, et récupère en quelques secondes : modèle, version iOS, numéro de série, IMEI, niveau de batterie et état d'activation. Chaque appareil peut être enregistré dans une fiche de stock locale.
+> Cette app tourne **en local sur le Mac** : elle a besoin de l'iPhone branché en USB, donc elle ne peut pas être hébergée sur Vercel. Le code est sur GitHub et **l'app se met à jour toute seule à chaque lancement**.
 
-> ⚠️ Cette app tourne **en local sur ton Mac** : elle a besoin d'un accès physique à l'iPhone branché en USB. Elle ne peut pas être hébergée sur un serveur cloud (Vercel, etc.).
+## Fonctions
 
-## Installation (une seule fois)
+- **Diagnostic** : modèle, IMEI, série, iOS, batterie (santé, cycles, température), stockage, activation, Localiser, origine (neuf / reconditionné Apple / échange SAV), région.
+- **Outils** : redémarrer, éteindre, mode récupération (entrée/sortie), mise à jour ou restauration iOS, sauvegarde complète, journal système en direct, apps installées, analyse des plantages (panic → pièce suspecte).
+- **Tests manuels** à cocher (Face ID, caméras, micro…), enregistrés dans la fiche.
+- **Stock** : fiche par iPhone (VAL-0001…), prix, frais, réparations, marge, statut, export CSV.
+- **Rapport de vente** imprimable / PDF.
+- **Google Sheets** : envoi vers l'onglet « stock » après validation d'un récapitulatif ; colonnes A–I et K seulement (J = Marge jamais touchée), relecture après écriture.
 
-1. Installer [Homebrew](https://brew.sh) s'il n'est pas déjà présent :
-   ```bash
-   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-   ```
-2. Installer les outils iPhone et Flask :
-   ```bash
-   brew install libimobiledevice
-   pip3 install flask
-   ```
+Ce que l'app ne fait pas : aucun contournement d'iCloud, de code ou d'opérateur.
 
-## Lancer l'app
+## Installation sur un Mac (une seule fois)
+
+Dans le Terminal (MacPorts déjà installé sur un Mac Intel ; sur Apple Silicon remplace la 1re ligne par `brew install gh`) :
 
 ```bash
-python3 valya_scan.py
+sudo port -N install gh
+gh auth login --hostname github.com --git-protocol https --web
+gh auth setup-git
+gh repo clone valentinautechaud765-create/valya-scan ~/ValyaScan
+bash ~/ValyaScan/macos/installer.sh
 ```
 
-Puis ouvrir **http://127.0.0.1:5000** dans Safari.
+Puis double-clic sur **Valya Scan** dans Applications. Au premier lancement, il installe les outils iPhone (libimobiledevice, idevicerestore…) et les modules Python.
 
-Branche l'iPhone, déverrouille-le et appuie sur **« Faire confiance »** quand il le demande. L'app affiche les infos et se rafraîchit toute seule.
+L'interface s'ouvre sur **http://127.0.0.1:5757** (le port 5000 est pris par AirPlay sur macOS).
 
-## Limites connues
+## Mises à jour
 
-- La **santé réelle de la batterie** (capacité max en %) n'est pas lisible de façon fiable par ces outils — seul le niveau de charge est affiché. Pour l'usure, voir Réglages > Batterie.
-- L'**état iCloud** exact ne se lit pas à 100 % en USB. L'app donne l'état d'activation ; le réflexe sûr à l'achat reste de se faire déconnecter l'iCloud devant soi avant de payer.
+Chaque lancement fait un `git pull` : il suffit de pousser sur `main` et de relancer l'app.
 
-## Ce que l'app ne fait pas
+## Données
 
-Pas de contournement de verrouillage iCloud ni de FRP Google — c'est illégal et réservé aux appareils volés. L'app aide à **acheter propre**, pas à débloquer.
+`~/Library/Application Support/ValyaScan/` : base `valya.db`, réglages, clé Google, sauvegardes, firmwares, rapports de plantage. Jamais dans le dépôt.
 
-## Stock
+## Structure
 
-Les fiches enregistrées sont stockées dans `stock_valya.json`, à côté du script. Ce fichier n'est pas versionné (voir `.gitignore`).
+```
+run.sh            lanceur (mise à jour, installation des outils, démarrage)
+requirements.txt  modules Python (100 % Python, aucune compilation)
+app/              serveur Flask + interface
+macos/            icône Applications + installateur
+```

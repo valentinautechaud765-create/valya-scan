@@ -1,0 +1,11 @@
+# Fiches de stock locales (données, pas du code)
+stock_valya.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# macOS
+.DS_Store

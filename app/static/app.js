@@ -103,7 +103,10 @@ function show(view) {
   if (view === "reglages") loadSettings();
   if (view === "reparations") loadTickets();
   if (view === "pieces") loadParts();
+  if (view === "technique") loadTechnique();
+  if (view === "maj") loadMaj();
 }
+document.addEventListener("click", e => { const g = e.target.closest("[data-goto]"); if (g) show(g.dataset.goto); });
 $$(".nav").forEach(b => b.onclick = () => show(b.dataset.view));
 
 /* ------------------------------------------------------------ état de l'appareil */
@@ -136,9 +139,9 @@ async function poll() {
   if (S.recovery) $("#rec-msg").textContent = `${S.recovery.nom || "iPhone"} — mode ${S.recovery.MODE || "?"}. Tu peux le faire redémarrer normalement ou réinstaller iOS.`;
   $("#diag").classList.toggle("hidden", !showDiag);
   $("#tools-sub").textContent = S.udid && S.paired ? "Sur l'iPhone branché : " + (S.scan ? S.scan.modele : "") : (S.recovery ? "iPhone en mode récupération : seules la sortie et la restauration sont possibles." : "Branche et déverrouille un iPhone pour utiliser ces outils.");
-  $$("[data-act], #btn-backup, #btn-crash, #btn-syslog, #btn-apps, #btn-rename").forEach(b => b.disabled = !(S.udid && S.paired));
+  $$("[data-act], [data-backup], #btn-crash, #btn-syslog, #btn-apps, #btn-rename").forEach(b => b.disabled = !(S.udid && S.paired));
   $$("[data-restore]").forEach(b => b.disabled = !((S.udid && S.paired) || S.recovery));
-  $$("#btn-exit-rec, #btn-exit-rec2").forEach(b => b.disabled = !S.recovery);
+  $$("#btn-exit-rec, #btn-exit-rec2, #btn-exit-rec3").forEach(b => b.disabled = !S.recovery);
   $("#btn-refresh").disabled = !(S.udid && S.paired);
 
   if (key !== S.lastDevKey) {
@@ -319,14 +322,14 @@ $$("[data-act]").forEach(b => b.onclick = async e => {
 $("#btn-rename").onclick = e => busy(e.currentTarget, async () => {
   const d = await api(`/api/action/${S.udid}/renommer`, {method: "POST", body: {nom: $("#rename-in").value}}); toast(d.message, "ok");
 });
-$$("#btn-exit-rec, #btn-exit-rec2").forEach(b => b.onclick = e => busy(e.currentTarget, async () => {
+$$("#btn-exit-rec, #btn-exit-rec2, #btn-exit-rec3").forEach(b => b.onclick = e => busy(e.currentTarget, async () => {
   const d = await api("/api/recovery/exit", {method: "POST"}); toast(d.message, "ok");
 }));
 $$("[data-restore]").forEach(b => b.onclick = async () => {
   const mode = b.dataset.restore, ipsw = ($("#ipsw-in").value || "").trim();
   let html;
   if (mode === "effacer") {
-    html = `<div class="alert danger">TOUTES les données de l'iPhone seront effacées. Si Localiser est activé, l'iPhone restera bloqué sur le compte iCloud du propriétaire après la restauration.</div>
+    html = (S.scan && S.scan.localiser ? `<div class="alert danger" style="margin-bottom:8px"><b>Localiser est ACTIVÉ sur cet iPhone.</b> Après l'effacement, il demandera l'identifiant Apple de son propriétaire et restera inutilisable. Désactive d'abord Localiser (Réglages › [nom] › Localiser).</div>` : "") + `<div class="alert danger">TOUTES les données de l'iPhone seront effacées. Si Localiser est activé, l'iPhone restera bloqué sur le compte iCloud du propriétaire après la restauration.</div>
       <p>Tape <b>EFFACER</b> pour confirmer :</p><input id="conf-erase" autocomplete="off">`;
   } else {
     html = `<p>iOS va être mis à jour vers la dernière version signée par Apple${ipsw ? " (fichier " + esc(ipsw) + ")" : ""}. Les données sont conservées, mais fais une sauvegarde avant par sécurité.</p>
@@ -337,7 +340,7 @@ $$("[data-restore]").forEach(b => b.onclick = async () => {
   if (S.udid && S.paired) body.udid = S.udid; else if (S.recovery) body.ecid = S.recovery.ECID;
   try { const d = await api("/api/jobs/restore", {method: "POST", body}); openJob(d.tache.id); } catch (e) { toast(e.message, "err"); }
 });
-$("#btn-backup").onclick = e => busy(e.currentTarget, async () => { const d = await api("/api/jobs/backup/" + S.udid, {method: "POST"}); openJob(d.tache.id); });
+$$("[data-backup]").forEach(b => b.onclick = e => busy(e.currentTarget, async () => { const d = await api("/api/jobs/backup/" + S.udid, {method: "POST"}); openJob(d.tache.id); }));
 $("#btn-crash").onclick = e => busy(e.currentTarget, async () => { const d = await api("/api/jobs/crash/" + S.udid, {method: "POST"}); openJob(d.tache.id); });
 $("#btn-syslog").onclick = e => busy(e.currentTarget, async () => { const d = await api("/api/jobs/syslog/" + S.udid, {method: "POST"}); openJob(d.tache.id); });
 $("#btn-apps").onclick = e => busy(e.currentTarget, async () => {
@@ -704,6 +707,78 @@ function openPart(p) {
   });
   const del = $("#p-del");
   if (del) del.onclick = async () => { if (await confirmBox("Supprimer cette pièce ?", "", "Supprimer", true)) { await api("/api/parts/" + p.id, {method: "DELETE"}); closeBig(); loadParts(); refreshCounters(); } };
+}
+
+/* ------------------------------------------------------------ fiche technique */
+async function copyOpen(value, url, label) {
+  if (!value) return toast("Numéro non disponible : relis l'iPhone.", "err");
+  try { await navigator.clipboard.writeText(value); } catch (e) {}
+  toast(label + " copié : " + value + " — colle-le dans la page qui s'ouvre.", "ok");
+  window.open(url, "_blank", "noopener");
+}
+async function loadTechnique(force = false) {
+  const ready = S.udid && S.paired;
+  $("#tech-empty").classList.toggle("hidden", !!ready);
+  if (!ready) { $("#tech").classList.add("hidden"); return; }
+  if (S.tech && S.tech.udid === S.udid && !force) return renderTechnique();
+  $("#tech-loading").classList.remove("hidden"); $("#tech").classList.add("hidden");
+  try {
+    const t = await api("/api/technique/" + S.udid);
+    S.tech = Object.assign(t, {udid: S.udid}); renderTechnique();
+  } catch (e) { toast(e.message, "err"); } finally { $("#tech-loading").classList.add("hidden"); }
+}
+function flatten(obj, prefix = "", out = []) {
+  if (obj && typeof obj === "object" && !Array.isArray(obj)) Object.entries(obj).forEach(([k, v]) => flatten(v, prefix ? prefix + " › " + k : k, out));
+  else if (Array.isArray(obj)) obj.forEach((v, i) => flatten(v, prefix + " [" + i + "]", out));
+  else out.push([prefix, obj]);
+  return out;
+}
+function renderTechnique() {
+  const t = S.tech;
+  $("#tech-sub").textContent = `Lu le ${frDate(t.lu_le)} — iOS ${t.ios || "?"} (${t.build || "?"})`;
+  $("#tech-dl").href = "/api/technique/" + S.udid + "?telecharger=1";
+  $("#tech-sections").innerHTML = t.sections.map(sec => `<div class="card"><h3>${esc(sec.titre)}</h3>${sec.lignes.length ?
+    `<dl class="kv">${sec.lignes.map(l => `<dt>${esc(l.cle)}</dt><dd class="copy" data-copy="${esc(l.valeur)}">${esc(l.valeur === true ? "Oui" : l.valeur === false ? "Non" : l.valeur)}</dd>`).join("")}</dl>`
+    : "<p class='muted small'>Rien de lisible par câble sur cette version d'iOS.</p>"}</div>`).join("");
+  renderRaw();
+  $("#tech").classList.remove("hidden");
+}
+function renderRaw() {
+  const q = ($("#raw-q").value || "").toLowerCase();
+  $("#raw").innerHTML = Object.entries(S.tech.brut).map(([dom, data]) => {
+    const rows = flatten(data).filter(([k, v]) => !q || (k + " " + v).toLowerCase().includes(q));
+    if (!rows.length) return "";
+    return `<details ${q ? "open" : ""}><summary><b>${esc(dom)}</b> <span class="muted small">${rows.length} valeur(s)</span></summary>
+      <table class="recap raw">${rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td class="copy" data-copy="${esc(v)}">${esc(v)}</td></tr>`).join("")}</table></details>`;
+  }).join("") || "<p class='muted'>Aucun résultat.</p>";
+}
+$("#raw-q").oninput = () => S.tech && renderRaw();
+$("#tech-reload").onclick = () => loadTechnique(true);
+$("#chk-apple").onclick = () => copyOpen((S.tech || {}).serie || (S.scan || {}).serie, "https://checkcoverage.apple.com/", "Numéro de série");
+$("#chk-imei").onclick = () => copyOpen((S.tech || {}).imei || (S.scan || {}).imei, "https://www.imei.info/?imei=" + encodeURIComponent((S.tech || {}).imei || (S.scan || {}).imei || ""), "IMEI");
+
+/* ------------------------------------------------------------ mise à jour & reset */
+async function loadMaj() {
+  const box = $("#ios-state");
+  $("#reset-warn").innerHTML = S.scan && S.scan.localiser ? `<div class="alert danger">Localiser est ACTIVÉ : après effacement, l'iPhone restera bloqué sur le compte iCloud du propriétaire. Désactive Localiser d'abord.</div>` : "";
+  if (S.recovery) {
+    $("#maj-sub").textContent = `${S.recovery.nom || "iPhone"} en mode récupération`;
+    box.innerHTML = `<div class="alert warn">iPhone en mode récupération : tu peux le <b>mettre à jour</b> (garde les données si possible), le <b>réinitialiser</b>, ou le <b>faire redémarrer normalement</b>.</div>`;
+    return;
+  }
+  if (!(S.udid && S.paired && S.scan)) { $("#maj-sub").textContent = "Branche et déverrouille un iPhone."; box.innerHTML = "<p class='muted'>Aucun iPhone prêt.</p>"; return; }
+  $("#maj-sub").textContent = `${S.scan.modele} · ${S.fiche.reference}`;
+  box.innerHTML = `<div class="row gap"><div class="spinner"></div>Vérification des versions iOS signées par Apple…</div>`;
+  const f = await api("/api/firmware/" + encodeURIComponent(S.scan.product_type)).catch(() => ({signees: [], erreur: "Vérification impossible."}));
+  const cur = S.scan.ios, latest = (f.signees || [])[0];
+  const cmp = (a, b) => { const x = String(a).split(".").map(Number), y = String(b).split(".").map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); } return 0; };
+  const upToDate = latest && cmp(cur, latest.version) >= 0;
+  box.innerHTML = `<div class="ios-grid">
+      <div><small class="muted">Installé sur l'iPhone</small><b>iOS ${esc(cur)}</b><span class="muted small">build ${esc(S.scan.build)}</span></div>
+      <div><small class="muted">Dernière version signée par Apple</small><b>${latest ? "iOS " + esc(latest.version) : "?"}</b><span class="muted small">${latest ? "sortie le " + frDate(latest.date) : esc(f.erreur || "")}</span></div>
+      <div class="ios-verdict ${latest ? (upToDate ? "ok" : "warn") : ""}">${latest ? (upToDate ? "✓ À jour" : "Mise à jour disponible") : "Vérification impossible"}</div>
+    </div>
+    ${(f.signees || []).length > 1 ? `<p class="small muted" style="margin:10px 0 0">Versions encore installables : ${f.signees.map(x => "iOS " + esc(x.version)).join(", ")}</p>` : ""}`;
 }
 
 /* ------------------------------------------------------------ réglages */

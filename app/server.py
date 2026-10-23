@@ -17,7 +17,7 @@ import device  # noqa: E402
 import jobs  # noqa: E402
 import sheets  # noqa: E402
 
-VERSION = "4.0.1"
+VERSION = "4.1.0"
 PORT = int(os.environ.get("VALYA_PORT", "5757"))
 
 app = Flask(__name__, static_folder=os.path.join(HERE, "static"), template_folder=os.path.join(HERE, "templates"))
@@ -104,6 +104,21 @@ def scan(udid):
     actifs = [t for t in fiche["tickets"] if t["statut"] not in ("Rendu", "Annulé")]
     return ok(diagnostic=data, fiche=fiche, changements=changes, synchro=sync,
               tickets_actifs=actifs, pieces_compatibles=db.parts_for(data.get("modele")))
+
+
+@app.route("/api/technique/<udid>")
+def technique(udid):
+    t = device.technical_sheet(udid)
+    if request.args.get("telecharger"):
+        import json
+        return Response(json.dumps(t["brut"], ensure_ascii=False, indent=2, default=str), mimetype="application/json",
+                        headers={"Content-Disposition": "attachment; filename=valya-%s.json" % (t["serie"] or "iphone")})
+    return ok(**t)
+
+
+@app.route("/api/firmware/<product_type>")
+def firmware(product_type):
+    return ok(**(device.latest_signed(product_type) or {}))
 
 
 @app.route("/api/live/<udid>")

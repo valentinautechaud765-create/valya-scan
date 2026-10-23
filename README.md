@@ -7,13 +7,15 @@ App de technicien iPhone pour l'activité Valya (achat-revente et réparation) :
 ## Fonctions
 
 - **iPhone branché** : diagnostic automatique au branchement, avec un verdict clair (OK / À vérifier / Bloqué) : modèle, IMEI, série, iOS, batterie (santé, cycles, n° de série, température, charge en direct), stockage, activation, Localiser, origine, région.
+- **Fiche technique complète** : tout ce que l'iPhone stocke (carte mère/puce : ECID, Chip/Board ID, iBoot ; modem ; batterie en détail : tension, courant, n° de série ; stockage ; système) + **données brutes Apple** domaine par domaine, filtrables et téléchargeables (JSON). Boutons vers les vérifications officielles en ligne (garantie/date d'achat Apple, liste noire IMEI) — ces infos ne sont pas stockées dans le téléphone.
+- **Mise à jour & réinitialisation** : version iOS installée vs dernière signée par Apple, mise à jour (données gardées), réinitialisation usine (effacement + réinstallation), mode récupération.
 - **Tests guidés** pas à pas (écran, tactile, Face ID, True Tone, caméras, micro, haut-parleurs, boutons, réseau, charge…) : ✓ / ✗, enregistrés dans la fiche et sur les rapports.
 - **Traçabilité** : historique complet de chaque iPhone (scans, changements détectés, interventions, statuts, tests). Suivi **avant / après réparation** avec comparaison (ex. n° de série batterie changé = batterie remplacée).
 - **Réparations clients** : fiche R-0001…, étapes (Reçu → Diagnostic → Devis → En réparation → Prêt → Rendu), devis/acompte, état au dépôt, **bon de dépôt** et **bon de restitution** imprimables.
 - **Stock de pièces** : coût, qualité (origine / OEM / compatible), fournisseur, alerte de stock bas ; décompté automatiquement quand une pièce est posée.
 - **Outils** : redémarrer, éteindre, mode récupération (entrée/sortie), mise à jour ou restauration iOS, sauvegarde complète, journal système en direct, apps installées, analyse des plantages (panic → pièce suspecte).
 - **Mes téléphones** : prix, frais, réparations, marge, statut, export CSV, **rapport de vente** PDF.
-- **Google Sheets (STOCKFLOW)** : envoi vers l'onglet « stock » après validation d'un récapitulatif ; colonnes A–I et K seulement (J = Marge jamais touchée), relecture après écriture.
+- **Google Sheets (STOCKFLOW)** : envoi vers l'onglet « stock » après validation d'un récapitulatif ; colonnes repérées par leur titre, la colonne Marge n'est jamais touchée, relecture après écriture.
 
 Ce que l'app ne fait pas : aucun contournement d'iCloud, de code ou d'opérateur, et elle ne masque pas le message « Pièce inconnue » d'Apple : les pièces non d'origine sont tracées et signalées sur les rapports.
 

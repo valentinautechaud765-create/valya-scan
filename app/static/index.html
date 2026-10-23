@@ -12,6 +12,8 @@
     <div class="brand"><span class="logo">V</span><div><b>Valya Scan</b><small id="version"></small></div></div>
     <nav>
       <button class="nav active" data-view="appareil"><i>◉</i>iPhone branché</button>
+      <button class="nav" data-view="technique"><i>⌬</i>Fiche technique</button>
+      <button class="nav" data-view="maj"><i>⟳</i>Mise à jour & reset</button>
       <button class="nav" data-view="reparations"><i>✚</i>Réparations<span class="pill hidden" id="rep-count"></span></button>
       <button class="nav" data-view="stock"><i>▤</i>Mes téléphones</button>
       <button class="nav" data-view="pieces"><i>◫</i>Pièces<span class="pill warn hidden" id="parts-alert"></span></button>
@@ -60,6 +62,64 @@
       <div id="diag" class="hidden"></div>
     </section>
 
+    <!-- ====================== FICHE TECHNIQUE ====================== -->
+    <section class="view hidden" id="view-technique">
+      <header class="top"><div><h1>Fiche technique complète</h1><p class="muted" id="tech-sub">Tout ce que l'iPhone stocke lui-même : carte mère, puce, modem, batterie, stockage, système.</p></div>
+        <div class="row gap"><button class="btn ghost" id="tech-reload">↻ Relire l'iPhone</button><a class="btn ghost" id="tech-dl" href="#">⤓ Tout télécharger (JSON)</a></div></header>
+      <div id="tech-empty" class="empty"><h2>Branche et déverrouille un iPhone</h2><p class="muted">La lecture complète prend 15 à 30 secondes.</p></div>
+      <div id="tech-loading" class="card hidden"><div class="spinner"></div><b>Lecture complète de l'iPhone…</b><p class="muted small">Tous les domaines Apple, la puce de charge, les diagnostics matériels.</p></div>
+      <div id="tech" class="hidden">
+        <div class="card online">
+          <div class="row between wrap"><h3>Vérifications en ligne (serveurs Apple et opérateurs)</h3></div>
+          <p class="small muted">La date d'achat, la garantie, le signalement « volé / perdu » (liste noire IMEI) et le blocage opérateur ne sont <b>pas</b> enregistrés dans le téléphone : ils sont chez Apple et chez les opérateurs. Ces boutons copient le numéro et ouvrent la vérification officielle.</p>
+          <div class="row gap wrap">
+            <button class="btn" id="chk-apple">🍎 Garantie & date d'achat (Apple)</button>
+            <button class="btn" id="chk-imei">🚫 Liste noire / volé (IMEI)</button>
+          </div>
+        </div>
+        <div id="tech-sections" class="grid2"></div>
+        <div class="card" style="margin-top:14px">
+          <div class="row between wrap"><h3>Données brutes Apple</h3><input id="raw-q" placeholder="Filtrer : battery, serial, imei…" style="max-width:300px"></div>
+          <p class="small muted">Exactement ce que renvoie l'iPhone, sans interprétation, domaine par domaine.</p>
+          <div id="raw"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================== MISE À JOUR & RESET ====================== -->
+    <section class="view hidden" id="view-maj">
+      <header class="top"><div><h1>Mise à jour & réinitialisation</h1><p class="muted" id="maj-sub">Branche un iPhone.</p></div></header>
+      <div class="card ios-state" id="ios-state"><p class="muted">Branche et déverrouille un iPhone.</p></div>
+      <div class="grid2" style="margin-top:14px">
+        <div class="card tool big-tool">
+          <h3>⟳ Mettre à jour iOS</h3>
+          <p class="muted">Installe la dernière version signée par Apple. <b>Les données sont conservées.</b> Fais une sauvegarde avant par sécurité.</p>
+          <div class="row gap wrap"><button class="btn primary" data-restore="maj">Mettre à jour maintenant</button><button class="btn" data-backup>Sauvegarder d'abord</button></div>
+        </div>
+        <div class="card tool big-tool danger-zone">
+          <h3>⚠ Réinitialiser en mode usine</h3>
+          <p class="muted">Réinstalle iOS proprement et <b>efface tout</b> : comme un iPhone neuf sorti de la boîte. À faire avant de revendre.</p>
+          <div id="reset-warn"></div>
+          <button class="btn danger" data-restore="effacer">Effacer et réinstaller iOS</button>
+          <p class="small muted" style="margin:0">Plus rapide si l'iPhone s'allume normalement : sur l'iPhone, <b>Réglages › Général › Transférer ou réinitialiser › Effacer contenu et réglages</b> (pas de téléchargement d'iOS).</p>
+        </div>
+        <div class="card tool">
+          <h3>Redémarrer / éteindre</h3>
+          <div class="row gap wrap"><button class="btn" data-act="redemarrer">Redémarrer</button><button class="btn" data-act="eteindre">Éteindre</button></div>
+        </div>
+        <div class="card tool">
+          <h3>Mode récupération</h3>
+          <p class="muted">iPhone bloqué sur la pomme, qui redémarre en boucle ou qui demande « support.apple.com/iphone/restore ».</p>
+          <div class="row gap wrap"><button class="btn" data-act="recuperation">Entrer</button><button class="btn" id="btn-exit-rec3">Sortir (redémarrer normalement)</button></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h3>Options avancées</h3>
+        <label>Installer un fichier iOS précis (.ipsw déjà téléchargé) — laisse vide pour la dernière version<input id="ipsw-in" placeholder="ex. ~/Downloads/iPhone16,1_18.6_22G86_Restore.ipsw"></label>
+        <p class="small muted">Apple n'autorise que les versions encore « signées » (liste ci-dessus) : impossible de revenir à une version plus ancienne.</p>
+      </div>
+    </section>
+
     <!-- ====================== RÉPARATIONS ====================== -->
     <section class="view hidden" id="view-reparations">
       <header class="top"><div><h1>Réparations clients</h1><p class="muted">Bons de dépôt, suivi, interventions et restitution.</p></div>
@@ -105,13 +165,10 @@
           <button class="btn" id="btn-exit-rec2">Sortir</button></div></div>
         <div class="card tool"><h3>Renommer</h3><p class="muted">Nom affiché dans Réglages › Général › Informations.</p>
           <div class="row gap"><input id="rename-in" placeholder="Nouveau nom"><button class="btn" id="btn-rename">OK</button></div></div>
-        <div class="card tool"><h3>Mise à jour / restauration iOS</h3>
-          <p class="muted"><b>Mise à jour</b> : garde les données. <b>Restauration</b> : efface tout (remise à zéro avant vente).</p>
-          <input id="ipsw-in" placeholder="Optionnel : chemin d'un fichier .ipsw déjà téléchargé">
-          <div class="row gap wrap"><button class="btn" data-restore="maj">Mettre à jour</button>
-          <button class="btn danger" data-restore="effacer">Restaurer (effacer)</button></div></div>
+        <div class="card tool"><h3>Mise à jour / réinitialisation</h3><p class="muted">Tout est regroupé dans l'onglet dédié.</p>
+          <button class="btn" data-goto="maj">Ouvrir « Mise à jour & reset »</button></div>
         <div class="card tool"><h3>Sauvegarde complète</h3><p class="muted">À faire avant une réparation risquée ou une restauration (téléphone client).</p>
-          <button class="btn" id="btn-backup">Sauvegarder</button></div>
+          <button class="btn" id="btn-backup" data-backup>Sauvegarder</button></div>
         <div class="card tool"><h3>Rapports de plantage</h3><p class="muted">Redémarrages en boucle ? Les « panic » indiquent souvent la pièce ou la nappe en cause.</p>
           <button class="btn" id="btn-crash">Analyser</button></div>
         <div class="card tool"><h3>Journal système en direct</h3><p class="muted">Ce que l'iPhone fait en temps réel, utile pour tester une pièce.</p>

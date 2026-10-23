@@ -375,3 +375,183 @@ def summarize_crashes(folder):
         if key in joined:
             hints.append(hint)
     return {"panics": panics[:50], "nb_panics": len(panics), "nb_autres": others, "pistes": hints}
+
+
+# ---------------------------------------------------------------- fiche technique complète
+
+DOMAINS = [
+    None, "com.apple.disk_usage", "com.apple.disk_usage.factory", "com.apple.mobile.battery",
+    "com.apple.mobile.internal", "com.apple.international", "com.apple.fmip", "com.apple.mobile.iTunes",
+    "com.apple.mobile.wireless_lockdown", "com.apple.mobile.data_sync", "com.apple.mobile.restriction",
+    "com.apple.mobile.backup", "com.apple.PurpleBuddy", "com.apple.purplebuddy", "com.apple.mobile.chaperone",
+    "com.apple.mobile.software_behavior", "com.apple.mobile.lockdown_cache", "com.apple.mobile.tethered_sync",
+    "com.apple.xcode.developerdomain", "com.apple.mobile.sync_data_class", "com.apple.fairplay",
+    "com.apple.iqagent", "com.apple.mobile.third_party_termination", "com.apple.mobile.ldwatch",
+]
+
+GESTALT_KEYS = ["MLBSerialNumber", "BasebandSerialNumber", "RegionalBehaviorAll", "ScreenDimensions",
+                "main-screen-class", "ArtworkDeviceProductDescription", "DeviceColorRGB", "HWModelStr",
+                "ChipID", "BoardId", "DieId", "BatteryCurrentCapacity", "BatteryIsFullyCharged",
+                "WifiVendor", "BluetoothAddress", "RearFacingCameraCapability", "FrontFacingCameraCapability"]
+
+
+def _clean(v):
+    """Rend un plist affichable : bytes -> hexa, dates -> texte."""
+    if isinstance(v, dict):
+        return {str(k): _clean(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_clean(x) for x in v]
+    if isinstance(v, bytes):
+        return v.hex() if len(v) <= 64 else "(%d octets) %s…" % (len(v), v[:32].hex())
+    if isinstance(v, datetime):
+        return v.strftime("%Y-%m-%d %H:%M:%S")
+    return v
+
+
+def raw_dump(udid):
+    """Tout ce que l'iPhone accepte de donner : chaque domaine lockdown, la batterie (registre IO),
+    les diagnostics matériels et MobileGestalt."""
+    out = {}
+    for dom in DOMAINS:
+        try:
+            data = lockdown(udid, dom)
+        except DeviceError:
+            data = {}
+        if data:
+            out[dom or "Général (lockdown)"] = _clean(data)
+    for entry in ("AppleSmartBattery", "AppleARMPMUCharger", "AppleAuthCP"):
+        try:
+            p = run(["idevicediagnostics", "-u", udid, "ioregentry", entry], timeout=20)
+            d = _plist(p.stdout)
+            if d:
+                out["Registre IO : " + entry] = _clean(d)
+        except DeviceError:
+            pass
+    for diag in ("All",):
+        try:
+            p = run(["idevicediagnostics", "-u", udid, "diagnostics", diag], timeout=25)
+            d = _plist(p.stdout)
+            if d:
+                out["Diagnostics matériels"] = _clean(d)
+        except DeviceError:
+            pass
+    try:
+        p = run(["idevicediagnostics", "-u", udid, "mobilegestalt"] + GESTALT_KEYS, timeout=20)
+        d = _plist(p.stdout)
+        if d:
+            out["MobileGestalt"] = _clean(d)
+    except DeviceError:
+        pass
+    return out
+
+
+def _g(raw, key, *domains):
+    for dom in domains or ("Général (lockdown)",):
+        v = _find_key(raw.get(dom, {}), key)
+        if v not in (None, ""):
+            return v
+    return None
+
+
+def technical_sheet(udid):
+    """Fiche technique lisible (en français) + données brutes complètes."""
+    raw = raw_dump(udid)
+    G = "Général (lockdown)"
+    bat_dom = ["Registre IO : AppleSmartBattery", "Diagnostics matériels", "com.apple.mobile.battery"]
+    pt = _g(raw, "ProductType")
+    mg = raw.get("MobileGestalt", {})
+    mgv = lambda k: (_find_key(mg, k) if not isinstance(_find_key(mg, k), str) or "Deprecated" not in _find_key(mg, k) else None)
+    design = _g(raw, "DesignCapacity", *bat_dom)
+    maxc = _g(raw, "NominalChargeCapacity", *bat_dom) or _g(raw, "AppleRawMaxCapacity", *bat_dom)
+    temp = _g(raw, "Temperature", *bat_dom)
+    volt = _g(raw, "Voltage", *bat_dom)
+    amp = _g(raw, "InstantAmperage", *bat_dom) or _g(raw, "Amperage", *bat_dom)
+    disk = raw.get("com.apple.disk_usage", {})
+    gb = lambda x: ("%.1f Go" % (float(x) / 1e9)) if isinstance(x, (int, float)) else None
+    model_number = _g(raw, "ModelNumber")
+    region = _g(raw, "RegionInfo")
+
+    sections = [
+        ("Identité de l'appareil", [
+            ("Modèle", models.product_name(pt)), ("Identifiant Apple", pt), ("Nom", _g(raw, "DeviceName")),
+            ("Numéro de série", _g(raw, "SerialNumber")), ("IMEI", _g(raw, "InternationalMobileEquipmentIdentity")),
+            ("IMEI 2", _g(raw, "InternationalMobileEquipmentIdentity2")), ("MEID", _g(raw, "MobileEquipmentIdentifier")),
+            ("UDID", _g(raw, "UniqueDeviceID")), ("Référence commerciale", (model_number or "") + (region or "")),
+            ("Origine (1re lettre de la référence)", models.model_origin(model_number)[0]),
+            ("Région de vente", models.region_name(region)), ("Code couleur coque", _g(raw, "DeviceEnclosureColor")),
+            ("Code couleur façade", _g(raw, "DeviceColor")),
+        ]),
+        ("Carte mère & puce", [
+            ("N° de série carte mère (MLB)", _g(raw, "MLBSerialNumber") or mgv("MLBSerialNumber")),
+            ("Modèle de carte (HardwareModel)", _g(raw, "HardwareModel")), ("Plateforme (SoC)", _g(raw, "HardwarePlatform")),
+            ("Chip ID", _g(raw, "ChipID")), ("Board ID", _g(raw, "BoardId")), ("ECID (identifiant unique de la puce)", _g(raw, "UniqueChipID")),
+            ("Die ID", _g(raw, "DieID")), ("Architecture", _g(raw, "CPUArchitecture")),
+            ("Puce de production", _g(raw, "ProductionSOC")), ("Bootloader (iBoot)", _g(raw, "FirmwareVersion")),
+        ]),
+        ("Système", [
+            ("Version iOS", _g(raw, "ProductVersion")), ("Build", _g(raw, "BuildVersion")),
+            ("État d'activation", _g(raw, "ActivationState")),
+            ("Localiser (Find My)", {True: "ACTIVÉ", False: "Désactivé"}.get(_g(raw, "IsAssociated", "com.apple.fmip"), "Non lisible")),
+            ("Code de verrouillage", "Oui" if _g(raw, "PasswordProtected") else "Non"),
+            ("Langue", _g(raw, "Language", "com.apple.international")), ("Région / format", _g(raw, "Locale", "com.apple.international")),
+            ("Fuseau horaire", _g(raw, "TimeZone")), ("Mode développeur", _g(raw, "DeveloperStatus", "com.apple.xcode.developerdomain")),
+            ("Ordinateur de confiance", "Oui" if _g(raw, "TrustedHostAttached") else None),
+        ]),
+        ("Réseau & modem", [
+            ("Firmware modem", _g(raw, "BasebandVersion")), ("N° de série modem", _g(raw, "BasebandSerialNumber") or mgv("BasebandSerialNumber")),
+            ("Puce modem", _g(raw, "BasebandChipID")), ("Statut SIM", (_g(raw, "SIMStatus") or "").replace("kCTSIMSupportSIMStatus", "") or None),
+            ("ICCID (carte SIM)", _g(raw, "IntegratedCircuitCardIdentity")),
+            ("Opérateur de la SIM", _find_key(_g(raw, "CarrierBundleInfoArray") or {}, "CFBundleIdentifier")),
+            ("Adresse Wi-Fi", _g(raw, "WiFiAddress")), ("Adresse Bluetooth", _g(raw, "BluetoothAddress")),
+        ]),
+        ("Batterie (données de la puce de charge)", [
+            ("Santé (capacité max / origine)", ("%d %%" % round(maxc * 100.0 / design)) if isinstance(design, int) and isinstance(maxc, int) and design else None),
+            ("Cycles de charge", _g(raw, "CycleCount", *bat_dom)), ("Capacité d'origine", design and "%s mAh" % design),
+            ("Capacité max actuelle", maxc and "%s mAh" % maxc), ("Capacité brute (AppleRawMaxCapacity)", _g(raw, "AppleRawMaxCapacity", *bat_dom)),
+            ("N° de série batterie", _g(raw, "Serial", *bat_dom) or _g(raw, "BatterySerialNumber", *bat_dom)),
+            ("Fabricant / date (code)", _g(raw, "ManufactureDate", *bat_dom) or _g(raw, "ManufacturerData", *bat_dom)),
+            ("Température", ("%.1f °C" % (temp / 100.0)) if isinstance(temp, int) and temp > 0 else None),
+            ("Tension", ("%.2f V" % (volt / 1000.0)) if isinstance(volt, int) and volt > 0 else None),
+            ("Courant instantané", amp and "%s mA" % amp), ("Charge actuelle", _g(raw, "BatteryCurrentCapacity", "com.apple.mobile.battery")),
+            ("En charge", "Oui" if _g(raw, "BatteryIsCharging", "com.apple.mobile.battery") else "Non"),
+            ("Chargeur branché", "Oui" if _g(raw, "ExternalConnected", *bat_dom) else None),
+        ]),
+        ("Stockage", [
+            ("Capacité totale", gb(disk.get("TotalDiskCapacity"))), ("Partition système", gb(disk.get("TotalSystemCapacity"))),
+            ("Espace données", gb(disk.get("TotalDataCapacity"))), ("Libre", gb(disk.get("AmountDataAvailable") or disk.get("TotalDataAvailable"))),
+            ("Réservé", gb(disk.get("AmountDataReserved"))), ("Type de mémoire", disk.get("NANDInfo") and "NAND"),
+        ]),
+    ]
+    sections = [{"titre": t, "lignes": [{"cle": k, "valeur": v} for k, v in rows if v not in (None, "", "None")]}
+                for t, rows in sections]
+    serial = _g(raw, "SerialNumber")
+    imei = _g(raw, "InternationalMobileEquipmentIdentity")
+    return {"sections": sections, "brut": raw, "serie": serial, "imei": imei, "product_type": pt,
+            "ios": _g(raw, "ProductVersion"), "build": _g(raw, "BuildVersion"), "lu_le": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+
+
+_fw_cache = {}
+
+
+def latest_signed(product_type):
+    """Versions d'iOS encore signées par Apple pour ce modèle (via api.ipsw.me)."""
+    import json
+    import time
+    import urllib.request
+    if not product_type:
+        return None
+    c = _fw_cache.get(product_type)
+    if c and c[0] > time.time() - 3600:
+        return c[1]
+    try:
+        req = urllib.request.Request("https://api.ipsw.me/v4/device/%s?type=ipsw" % product_type,
+                                     headers={"User-Agent": "ValyaScan"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            d = json.loads(r.read().decode("utf-8"))
+        signed = [{"version": f["version"], "build": f["buildid"], "taille": f.get("filesize"),
+                   "date": (f.get("releasedate") or "")[:10]} for f in d.get("firmwares", []) if f.get("signed")]
+        res = {"nom": d.get("name"), "signees": signed}
+    except Exception as e:
+        res = {"erreur": "Impossible de vérifier les versions iOS en ligne (%s)." % e.__class__.__name__, "signees": []}
+    _fw_cache[product_type] = (time.time(), res)
+    return res

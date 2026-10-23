@@ -460,6 +460,57 @@ def stats():
             "investi": round(invested, 2), "benefice": round(profit, 2), "benefice_potentiel": round(potential, 2)}
 
 
+def dashboard():
+    """Tout ce qu'il faut voir en ouvrant l'app : chiffres, réparations en cours,
+    pièces en alerte, iPhone à surveiller, dernière activité."""
+    st = stats()
+    tickets = list_tickets()
+    actifs = [t for t in tickets if t["statut"] not in ("Rendu", "Annulé")]
+    prets = [t for t in actifs if t["statut"] == "Prêt"]
+    # réparations en retard : date prévue passée et pas encore prêtes/rendues
+    retard = [t for t in actifs if t.get("date_prevue") and t["date_prevue"] < today() and t["statut"] not in ("Prêt",)]
+    ca_reparations = sum((t.get("devis") or 0) for t in tickets if t["statut"] == "Rendu")
+    attente_paiement = sum((t.get("reste_a_payer") or 0) for t in prets)
+
+    parts = list_parts()
+    alertes_pieces = [p for p in parts if p["alerte"]]
+    valeur_pieces = sum((p["cout"] or 0) * (p["quantite"] or 0) for p in parts)
+
+    phones = list_phones()
+    bloques = [p for p in phones if p.get("localiser") and p["statut"] not in ("Vendu",)]
+    batterie_faible = [p for p in phones if p.get("sante_batterie") is not None and p["sante_batterie"] < 80
+                       and p["statut"] not in ("Vendu", "Pièces", CLIENT)]
+    a_tester = [p for p in phones if not (p.get("tests")) and p["statut"] in ("En stock", "En vente")]
+
+    with _lock:
+        c = conn()
+        events = [dict(r) for r in c.execute(
+            "SELECT e.*, p.reference FROM events e LEFT JOIN phones p ON p.id=e.phone_id ORDER BY e.id DESC LIMIT 15").fetchall()]
+        c.close()
+
+    return {
+        "stats": st,
+        "reparations": {
+            "en_cours": len(actifs), "prets": len(prets), "retard": len(retard),
+            "ca_mois": round(ca_reparations, 2), "attente_paiement": round(attente_paiement, 2),
+            "liste": [{"id": t["id"], "numero": t["numero"], "client": t["client_nom"], "appareil": t["appareil"],
+                       "probleme": t["probleme"], "statut": t["statut"], "date_prevue": t.get("date_prevue"),
+                       "retard": bool(t.get("date_prevue") and t["date_prevue"] < today() and t["statut"] != "Prêt")}
+                      for t in actifs[:8]],
+        },
+        "pieces": {"alertes": len(alertes_pieces), "valeur": round(valeur_pieces, 2),
+                   "liste": [{"id": p["id"], "nom": p["nom"], "quantite": p["quantite"], "seuil": p["seuil"],
+                              "compatible": p["compatible"]} for p in alertes_pieces[:8]]},
+        "a_surveiller": {
+            "bloques_icloud": [{"id": p["id"], "reference": p["reference"], "modele": p["modele"]} for p in bloques[:6]],
+            "batterie_faible": [{"id": p["id"], "reference": p["reference"], "modele": p["modele"],
+                                 "sante": p["sante_batterie"]} for p in batterie_faible[:6]],
+            "a_tester": [{"id": p["id"], "reference": p["reference"], "modele": p["modele"]} for p in a_tester[:6]],
+        },
+        "activite": events,
+    }
+
+
 # ------------------------------------------------------------------ fiches de réparation clients
 
 def _ticket_enrich(c, t):

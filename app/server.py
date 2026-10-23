@@ -17,7 +17,7 @@ import device  # noqa: E402
 import jobs  # noqa: E402
 import sheets  # noqa: E402
 
-VERSION = "4.1.0"
+VERSION = "4.2.0"
 PORT = int(os.environ.get("VALYA_PORT", "5757"))
 
 app = Flask(__name__, static_folder=os.path.join(HERE, "static"), template_folder=os.path.join(HERE, "templates"))
@@ -124,6 +124,11 @@ def firmware(product_type):
 @app.route("/api/live/<udid>")
 def live(udid):
     return ok(**device.live(udid))
+
+
+@app.route("/api/dashboard")
+def dashboard():
+    return ok(**db.dashboard())
 
 
 @app.route("/api/meta")

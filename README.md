@@ -6,6 +6,7 @@ App de technicien iPhone pour l'activité Valya (achat-revente et réparation) :
 
 ## Fonctions
 
+- **Accueil** : tableau de bord — chiffres clés (stock, bénéfice, à encaisser), réparations en cours (retards et téléphones prêts), iPhone à surveiller (iCloud bloqué, batterie faible, à tester), pièces en rupture et dernière activité.
 - **iPhone branché** : diagnostic automatique au branchement, avec un verdict clair (OK / À vérifier / Bloqué) : modèle, IMEI, série, iOS, batterie (santé, cycles, n° de série, température, charge en direct), stockage, activation, Localiser, origine, région.
 - **Fiche technique complète** : tout ce que l'iPhone stocke (carte mère/puce : ECID, Chip/Board ID, iBoot ; modem ; batterie en détail : tension, courant, n° de série ; stockage ; système) + **données brutes Apple** domaine par domaine, filtrables et téléchargeables (JSON). Boutons vers les vérifications officielles en ligne (garantie/date d'achat Apple, liste noire IMEI) — ces infos ne sont pas stockées dans le téléphone.
 - **Mise à jour & réinitialisation** : version iOS installée vs dernière signée par Apple, mise à jour (données gardées), réinitialisation usine (effacement + réinstallation), mode récupération.

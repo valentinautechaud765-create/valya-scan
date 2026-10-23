@@ -185,3 +185,14 @@ details summary{cursor:pointer;padding:4px 0}
 .big-tool h3{font-size:17px}
 .danger-zone{border-color:#ff4d5e44;background:linear-gradient(180deg,#ff4d5e0a,transparent)}
 @media (max-width:900px){.ios-grid{grid-template-columns:1fr}}
+
+/* ===== v4.2 accueil ===== */
+.dlist{display:flex;flex-direction:column;gap:2px;margin-top:8px}
+.drow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px;border-radius:10px;cursor:pointer}
+.drow:hover{background:#ffffff08}
+.st.late{color:var(--warn);background:#ffb02018}
+.dchips{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.dpill{all:unset;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 12px;border:1px solid var(--line);border-radius:10px}
+.dpill:hover{border-color:var(--accent)}
+.tagi{padding:2px 8px;border-radius:99px;font-size:11.5px;background:#ffffff0d}
+.tagi.danger{color:var(--danger);background:#ff4d5e18}.tagi.warn{color:var(--warn);background:#ffb02018}

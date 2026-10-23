@@ -105,6 +105,7 @@ function show(view) {
   if (view === "pieces") loadParts();
   if (view === "technique") loadTechnique();
   if (view === "maj") loadMaj();
+  if (view === "accueil") loadAccueil();
 }
 document.addEventListener("click", e => { const g = e.target.closest("[data-goto]"); if (g) show(g.dataset.goto); });
 $$(".nav").forEach(b => b.onclick = () => show(b.dataset.view));
@@ -707,6 +708,62 @@ function openPart(p) {
   });
   const del = $("#p-del");
   if (del) del.onclick = async () => { if (await confirmBox("Supprimer cette pièce ?", "", "Supprimer", true)) { await api("/api/parts/" + p.id, {method: "DELETE"}); closeBig(); loadParts(); refreshCounters(); } };
+}
+
+/* ------------------------------------------------------------ accueil */
+async function loadAccueil() {
+  const h = new Date().getHours();
+  $("#hello").textContent = (h < 6 ? "Bonne nuit" : h < 18 ? "Bonjour" : "Bonsoir") + (S.settings.boutique ? " · " + S.settings.boutique : "");
+  const d = await api("/api/dashboard").catch(e => toast(e.message, "err"));
+  if (!d) return;
+  const k = d.stats, r = d.reparations, sv = d.a_surveiller;
+  const kpi = (label, val, cls) => `<div class="kpi"><small>${label}</small><b class="${cls || ""}">${val}</b></div>`;
+  const chip = (txt, cls, goto, id) => `<button class="dpill ${cls || ""}" ${goto ? `data-goto="${goto}"` : ""} ${id ? `data-open="${id}"` : ""}>${txt}</button>`;
+  const surv = [].concat(
+    sv.bloques_icloud.map(p => ({...p, t: "iCloud", c: "danger"})),
+    sv.batterie_faible.map(p => ({...p, t: "Batterie " + p.sante + "%", c: "warn"})),
+    sv.a_tester.map(p => ({...p, t: "À tester", c: ""})));
+
+  $("#accueil-body").innerHTML = `
+    <div class="kpis">
+      ${kpi("En stock", k.en_stock)}
+      ${kpi("Bénéfice réalisé", eur(k.benefice), k.benefice >= 0 ? "pos" : "neg")}
+      ${kpi("Bénéfice potentiel", eur(k.benefice_potentiel))}
+      ${kpi("Argent investi", eur(k.investi))}
+      ${kpi("Répa. en cours", r.en_cours, r.retard ? "neg" : "")}
+      ${kpi("À encaisser", eur(r.attente_paiement))}
+    </div>
+    <div class="grid2" style="margin-top:14px">
+      <div class="card">
+        <div class="row between"><h3>Réparations en cours</h3><button class="btn small ghost" data-goto="reparations">Tout voir</button></div>
+        ${r.retard ? `<div class="alert danger" style="margin:6px 0">${r.retard} réparation(s) en retard sur la date prévue.</div>` : ""}
+        ${r.prets ? `<div class="alert ok" style="margin:6px 0">${r.prets} téléphone(s) prêt(s) à rendre.</div>` : ""}
+        ${r.liste.length ? `<div class="dlist">${r.liste.map(t => `<div class="drow" data-open-ticket="${t.id}">
+          <div><b>${esc(t.numero)}</b> · ${esc(t.client)}<br><span class="muted small">${esc(t.appareil || "")} — ${esc(t.probleme)}</span></div>
+          <span class="st ${t.retard ? "late" : ""}">${t.retard ? "⏰ " : ""}${esc(t.statut)}</span></div>`).join("")}</div>`
+          : `<p class="muted">Aucune réparation en cours. <a href="#" data-goto="reparations">En créer une</a>.</p>`}
+      </div>
+      <div class="card">
+        <div class="row between"><h3>À surveiller</h3><button class="btn small ghost" data-goto="stock">Mes téléphones</button></div>
+        ${surv.length ? `<div class="dchips">${surv.map(p => chip(`${esc(p.reference)} · ${esc(p.modele)} <span class="tagi ${p.c}">${esc(p.t)}</span>`, "", null, p.id)).join("")}</div>`
+          : `<p class="muted">Rien à signaler : pas d'iCloud bloqué, pas de batterie faible, tout est testé. 👍</p>`}
+      </div>
+      <div class="card">
+        <div class="row between"><h3>Stock de pièces</h3><button class="btn small ghost" data-goto="pieces">Gérer</button></div>
+        <p class="small muted">Valeur du stock : <b>${eur(d.pieces.valeur)}</b></p>
+        ${d.pieces.liste.length ? `<div class="dlist">${d.pieces.liste.map(p => `<div class="drow" data-open-part="${p.id}">
+          <div><b>${esc(p.nom)}</b><br><span class="muted small">${esc(p.compatible || "")}</span></div>
+          <span class="st late">${p.quantite} restant${p.quantite > 1 ? "s" : ""}</span></div>`).join("")}</div>`
+          : `<p class="muted">Aucune pièce en rupture. 👍</p>`}
+      </div>
+      <div class="card">
+        <div class="row between"><h3>Dernière activité</h3></div>
+        ${d.activite.length ? timeline(d.activite.map(e => ({...e, texte: (e.reference ? e.reference + " — " : "") + e.texte}))) : "<p class='muted'>Rien encore. Branche un iPhone pour commencer.</p>"}
+      </div>
+    </div>`;
+  $$("[data-open]", $("#accueil-body")).forEach(b => b.onclick = () => openPhone(+b.dataset.open));
+  $$("[data-open-ticket]", $("#accueil-body")).forEach(b => b.onclick = () => openTicket(+b.dataset.openTicket));
+  $$("[data-open-part]", $("#accueil-body")).forEach(b => b.onclick = () => { show("pieces"); setTimeout(() => { const p = (PARTS || []).find(x => x.id === +b.dataset.openPart); if (p) openPart(p); }, 300); });
 }
 
 /* ------------------------------------------------------------ fiche technique */

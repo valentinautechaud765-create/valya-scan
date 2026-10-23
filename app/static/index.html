@@ -11,6 +11,7 @@
   <aside class="side">
     <div class="brand"><span class="logo">V</span><div><b>Valya Scan</b><small id="version"></small></div></div>
     <nav>
+      <button class="nav" data-view="accueil"><i>▦</i>Accueil</button>
       <button class="nav active" data-view="appareil"><i>◉</i>iPhone branché</button>
       <button class="nav" data-view="technique"><i>⌬</i>Fiche technique</button>
       <button class="nav" data-view="maj"><i>⟳</i>Mise à jour & reset</button>
@@ -25,6 +26,13 @@
   </aside>
 
   <main>
+    <!-- ====================== ACCUEIL ====================== -->
+    <section class="view hidden" id="view-accueil">
+      <header class="top"><div><h1 id="hello">Bonjour</h1><p class="muted" id="accueil-sub">Vue d'ensemble de ton activité.</p></div>
+        <button class="btn primary" data-goto="appareil">Brancher un iPhone →</button></header>
+      <div id="accueil-body"><div class="card"><div class="spinner"></div> Chargement…</div></div>
+    </section>
+
     <!-- ====================== IPHONE BRANCHÉ ====================== -->
     <section class="view" id="view-appareil">
       <header class="top">

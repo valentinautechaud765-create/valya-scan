@@ -1,9 +1,32 @@
 #!/bin/bash
-# Lance Valya Scan (code dans ~/ValyaScan, mis à jour depuis GitHub à chaque lancement).
-LANCEUR="$HOME/ValyaScan/run.sh"
-if [ ! -f "$LANCEUR" ]; then
-  osascript -e 'display alert "Valya Scan n'"'"'est pas installé" message "Le dossier ~/ValyaScan est introuvable. Refais l'"'"'installation décrite dans le README du dépôt valya-scan."'
+# Lanceur graphique Valya Scan : utilise le service macOS en arrière-plan.
+# Le serveur reste géré par launchd, pas par la fenêtre Terminal.
+
+LABEL="fr.valya.scan"
+UID_NOW="$(id -u)"
+URL="http://127.0.0.1:5757"
+PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+
+# Vérifie que le service launchd existe et le charge si nécessaire.
+if [ ! -f "$PLIST" ]; then
+  osascript -e 'display alert "Valya Scan : démarrage automatique non configuré" message "Ouvre le dossier ~/ValyaScan puis exécute une fois : bash macos/activer-demarrage-auto.sh"'
   exit 1
 fi
-chmod +x "$LANCEUR" 2>/dev/null
-open -a Terminal "$LANCEUR"
+
+if ! launchctl print "gui/$UID_NOW/$LABEL" >/dev/null 2>&1; then
+  launchctl bootstrap "gui/$UID_NOW" "$PLIST" >/dev/null 2>&1 || {
+    osascript -e 'display alert "Impossible de démarrer Valya Scan" message "Le service macOS n’a pas pu être chargé. Ouvre Terminal et envoie le résultat de launchctl print gui/'"$UID_NOW"'/fr.valya.scan."'
+    exit 1
+  }
+fi
+
+# Demande à launchd de démarrer/reprendre le serveur. KeepAlive le relancera en cas de crash.
+launchctl kickstart "gui/$UID_NOW/$LABEL" >/dev/null 2>&1 || true
+
+# Laisse quelques secondes au serveur pour écouter, sans bloquer le Dock.
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  /usr/bin/curl -fsS --max-time 1 "$URL/api/meta" >/dev/null 2>&1 && break
+  /bin/sleep 1
+done
+
+/usr/bin/open "$URL"

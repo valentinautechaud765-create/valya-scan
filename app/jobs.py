@@ -41,7 +41,7 @@ class Job(object):
     def add(self, line):
         # Capture uniquement les pourcentages explicitement fournis par l'outil.
         text = line.strip()
-        match = re.search(r"(?:progress(?:ion)?\\s*[:=]?\\s*)?(\\d{1,3}(?:[.,]\\d+)?)\\s*%", text, re.I)
+        match = re.search(r"(?:progress(?:ion)?\s*[:=]?\s*)?(\d{1,3}(?:[.,]\d+)?)\s*%", text, re.I)
         if match:
             try:
                 value = float(match.group(1).replace(",", "."))

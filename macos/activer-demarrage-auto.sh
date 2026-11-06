@@ -15,7 +15,7 @@ LOGS="$HOME/Library/Logs"
 OUT="$LOGS/ValyaScan-launchd.log"
 ERR="$LOGS/ValyaScan-launchd-error.log"
 
-if [ ! -x "$RUN" ]; then
+if [ ! -f "$RUN" ]; then
   echo "Erreur : run.sh est introuvable ou non exécutable dans $ROOT"
   exit 1
 fi

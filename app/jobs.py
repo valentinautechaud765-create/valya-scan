@@ -9,6 +9,7 @@ import signal
 import subprocess
 import threading
 import time
+import re
 
 _ids = itertools.count(1)
 _jobs = {}
@@ -34,8 +35,33 @@ class Job(object):
         self.env = env
         self.cwd = cwd
         self.result = None
+        self.progress = None
+        self.phase = "Préparation"
 
     def add(self, line):
+        # Capture uniquement les pourcentages explicitement fournis par l'outil.
+        text = line.strip()
+        match = re.search(r"(?:progress(?:ion)?\\s*[:=]?\\s*)?(\\d{1,3}(?:[.,]\\d+)?)\\s*%", text, re.I)
+        if match:
+            try:
+                value = float(match.group(1).replace(",", "."))
+                if 0 <= value <= 100:
+                    self.progress = value
+            except ValueError:
+                pass
+        phases = [
+            (("download", "télécharg", "downloading"), "Téléchargement du firmware"),
+            (("verify", "vérif", "signature", "validat"), "Vérification du firmware"),
+            (("extract", "extraction", "unzip"), "Préparation des fichiers"),
+            (("restore", "restoring", "restauration", "flash", "writing", "write"), "Installation sur l’iPhone"),
+            (("reboot", "redémarr", "restarting"), "Redémarrage de l’iPhone"),
+            (("backup", "sauvegarde"), "Sauvegarde des données"),
+        ]
+        lower = text.lower()
+        for words, label in phases:
+            if any(word in lower for word in words):
+                self.phase = label
+                break
         with _lock:
             self.lines.append(line.rstrip("\n"))
             if len(self.lines) > MAX_LINES:
@@ -51,7 +77,7 @@ class Job(object):
                 "status": self.status, "returncode": self.returncode,
                 "started": self.started, "ended": self.ended,
                 "lines": self.lines[start:], "next": self.offset + len(self.lines),
-                "result": self.result,
+                "result": self.result, "progress": self.progress, "phase": self.phase,\n                "elapsed": max(0, time.time() - self.started),\n                "eta": (max(0, (time.time() - self.started) * (100 - self.progress) / self.progress) if self.progress and self.progress > 0 else None),
             }
 
 

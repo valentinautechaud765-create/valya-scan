@@ -375,6 +375,26 @@ async function tickJob() {
   if (atBottom) c.scrollTop = c.scrollHeight;
   S.jobSince = d.next;
   $("#job-title").textContent = `${d.label} — ${d.status}`;
+  let panel = $("#job-progress");
+  if (!panel) {
+    panel = document.createElement("div");
+    panel.id = "job-progress";
+    panel.className = "job-progress card";
+    $("#console").before(panel);
+  }
+  const elapsed = Math.floor(d.elapsed || 0);
+  const clock = n => String(Math.floor(n / 60)).padStart(2, "0") + ":" + String(n % 60).padStart(2, "0");
+  const pct = Number.isFinite(d.progress) ? Math.max(0, Math.min(100, d.progress)) : null;
+  const done = d.status === "terminée";
+  const progressText = pct === null ? "Pourcentage non communiqué par l’outil" : Math.round(pct) + " %";
+  const etaText = pct !== null && d.eta != null && d.status === "en cours" ? "Estimation indicative : " + clock(Math.round(d.eta)) : "Durée restante indisponible";
+  panel.innerHTML = `
+    <div class="job-progress-head"><div><b>Étape actuelle</b><div class="muted small">${esc(d.phase || "En cours")}</div></div>
+    <strong>${done ? "100 %" : progressText}</strong></div>
+    <div class="job-progress-track"><div class="job-progress-fill" style="width:${done ? 100 : (pct === null ? 0 : pct)}%"></div></div>
+    <div class="job-progress-meta"><span>Temps écoulé : <b>${clock(elapsed)}</b></span><span>${etaText}</span></div>
+    ${pct === null && !done ? '<p class="muted small">L’outil ne fournit pas de progression chiffrée pour cette étape. Le journal ci-dessous indique son activité réelle.</p>' : ''}
+  `;
   $("#btn-stop").classList.toggle("hidden", d.status !== "en cours");
   if (d.result) renderJobResult(d);
   if (d.status === "en cours") S.jobTimer = setTimeout(tickJob, 800); else loadJobs();
